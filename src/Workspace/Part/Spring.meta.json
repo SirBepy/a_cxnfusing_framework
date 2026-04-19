@@ -1,0 +1,7 @@
+{
+  "className": "Script",
+  "properties": {
+    "RunContext": "Legacy"
+  },
+  "ignoreUnknownInstances": true
+}

@@ -1,0 +1,5 @@
+std = "roblox" # Use the roblox std
+
+[rules]
+multiple_statements = "allow"
+single_line_if = "allow"
