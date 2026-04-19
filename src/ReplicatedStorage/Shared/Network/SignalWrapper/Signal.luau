@@ -1,8 +1,36 @@
 --!optimize 2
 
 --[[
+	Signal (vendored: SignalPlus v3.6.1 by Alexander Lindholt)
+	==========================================================
 
-           +++                                                                                      
+	Purpose:
+		Fast linked-list signal used as the backbone for `Network.newLocal`.
+		Gives you Connect / Once / Wait / Fire / DisconnectAll / Destroy.
+
+	When to use:
+		Indirectly, via `Network.newLocal()`. You normally won't require this
+		file yourself; the wrapper handles instantiation.
+
+	Example:
+		local sig = Network.newLocal()
+		sig:Connect(function(x) print("got", x) end)
+		sig:Fire(42)
+
+	Gotchas:
+		- Vendored third-party code. Do not restyle or edit behavior. Only
+		  update when pulling a new upstream release.
+		- Connections fire in REVERSE insertion order (tail-to-head linked
+		  list traversal). Don't rely on listener ordering.
+		- `Destroy` unlinks the metatable. Any further method calls on a
+		  destroyed signal will error.
+
+	Original banner and license follow.
+]]
+
+--[[
+
+           +++
        ++++++++   ===                                                                               
     ++++++++++   ====                                                  ====                         
      ++++++                                                            ====                         

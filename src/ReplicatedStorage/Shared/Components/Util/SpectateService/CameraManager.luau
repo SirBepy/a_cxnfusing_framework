@@ -94,14 +94,45 @@ Credits:
                                                    
 ]]
 
+--[[
+	CameraManager (short summary — full docs above)
+	-----------------------------------------------
+	Purpose:
+		Scriptable-camera wrapper for fixed camera parts/attachments. Point
+		at a Part/Attachment, call :Open(), and the player's camera snaps to
+		it with mouse-driven look-around and smooth rotation. SpectateService
+		uses this for its non-native first-person path.
+
+	When to use:
+		Cinematic cameras, security-cam style viewpoints, first-person rigs
+		attached to a body part. When native Roblox camera modes aren't
+		flexible enough.
+
+	Example:
+		local CameraManager = require(...)
+		local cam = CameraManager.new(workspace.CameraPart, { FOV = 80 })
+		cam:Open()
+
+	Gotchas:
+		- Only one camera is "open" at a time; :Open() on a new one
+		  overrides the previous.
+		- :Destroy() nils every field on self, so any held reference becomes
+		  useless — don't keep using it after destroying.
+		- Attachment targets use WorldCFrame; BaseParts use CFrame.
+]]
+
 local Manager = {}
 Manager.__index = Manager
 
+-- CurrentCamera is cached at module load. If a script swaps it later this
+-- module won't follow; Roblox almost never does that, so fine in practice.
 local cc = workspace.CurrentCamera
 
 local plr = game.Players.LocalPlayer
 local mouse = plr:GetMouse()
 
+-- Global sensitivity multiplier applied on top of per-camera LookXDivider/YDivider.
+-- Small value = small look-around angles (this is a peek-style camera, not full FPS).
 local camRotMult = 0.05
 
 local curOpen = nil
@@ -147,6 +178,8 @@ end
 
 local function getCamRotation(config : Config)
 
+	-- Offset from screen center → rotation amount. Negated so the camera
+	-- looks toward the cursor, not away from it.
 	local rotX = -(mouse.Y - mouse.ViewSizeY / 2)/config.LookYDivider
 	local rotY = -(mouse.X - mouse.ViewSizeX / 2)/config.LookXDivider
 	
@@ -229,9 +262,12 @@ game["Run Service"].RenderStepped:Connect(function()
 		local camPart : BasePart | Attachment = curOpen.Part
 		local config : Config = curOpen.Config
 
+		-- Target CFrame = part's current CFrame rotated by mouse look.
 		local cf = camPart:IsA("Attachment") and camPart.WorldCFrame or camPart.CFrame
 		cf *= getCamRotation(config)
 
+		-- Snap the position instantly (so moving cameras don't lag behind)
+		-- but smooth-lerp the rotation toward the target.
 		cc.CFrame = CFrame.new(cf.Position)*cc.CFrame.Rotation
 		cc.CFrame = cc.CFrame:Lerp(cf,config.RotLerpAmount)
 

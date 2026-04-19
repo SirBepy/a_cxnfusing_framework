@@ -3,6 +3,16 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose: Low-level helpers for Pooler+: property snapshot/reset, safe parenting,
+	memory pressure read, priority lookup, PoolError factory, and the shared
+	PoolStorage/UIPoolStorage containers pools use as a quiet home for idle objects.
+	When to use: internal only. Public code goes through ObjectPool.
+	Gotchas: creates PoolStorage Folder in workspace and a UIPoolStorage ScreenGui
+	(server vs client paths differ). Leftover DEBUG print in getMemoryPressure is
+	intentional per review.
+]]
+
 local Stats = game:GetService("Stats")
 local Constants = require(script.Parent.Constants)
 local Types = require(script.Parent.Types)
@@ -26,8 +36,12 @@ else
 	UIPoolStorage.Parent = game.Players.LocalPlayer.PlayerGui
 end
 
+-- Caches. Snapshots are per-template (actual values to restore); propertySets is
+-- per-ClassName (which property NAMES apply). Split so we only compute the name
+-- list once per class but still keep distinct values per template instance.
 local propertySnapshots: { [Instance]: { [string]: any } } = {}
 local propertySets: { [string]: { [string]: boolean } } = {}
+-- Weak keys so templates that get destroyed don't pin this table forever.
 local weakInstanceTracker = setmetatable({}, {__mode = "k"})
 
 function Utils.createPropertySet(properties: {string}): {[string]: boolean}
@@ -66,6 +80,8 @@ function Utils.snapshotInstanceOptimized(template: Instance): { [string]: any }
 	end
 
 	for propertyName in pairs(propertySets[cacheKey]) do
+		-- pcall because some properties aren't readable on every subclass
+		-- (e.g. Shape on non-Part BaseParts). Silent skip is the right move.
 		local success, value = pcall(function()
 			return (template :: any)[propertyName]
 		end)
@@ -95,6 +111,7 @@ function Utils.resetInstance(instance: Instance, template: Instance)
 	local snapshot = Utils.snapshotInstanceOptimized(template)
 
 	for propertyName, value in pairs(snapshot) do
+		-- Never touch Parent here; the caller decides where the object goes.
 		if propertyName ~= "Parent" then
 			local success = pcall(function()
 				(instance :: any)[propertyName] = value

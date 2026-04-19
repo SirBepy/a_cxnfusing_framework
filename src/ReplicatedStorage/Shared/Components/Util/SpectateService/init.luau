@@ -1,7 +1,34 @@
+--[[
+	SpectateService (client)
+	------------------------
+	Purpose:
+		Client-side helper for "watch another player / model / part". Swaps
+		the CameraSubject to whatever you point at and, optionally, locks
+		into first person or a custom scripted camera via CameraManager.
+
+	When to use:
+		Death-cam / spectate UI, focusing the camera on a cutscene actor,
+		debug-style "follow this NPC". Call :Watch(target) to start,
+		:StopWatching() to return to your own character.
+
+	Example:
+		local Spectate = require(Shared.Util.SpectateService)
+		Spectate:Init()
+		Spectate:Watch(otherPlayer, { SpectateType = "LockFirstPerson" })
+
+	Gotchas:
+		- Client-only. Requiring on the server returns a stub (`true`).
+		- If the current watched player leaves or our own character respawns,
+		  Init hooks auto-fall back to watching ourselves.
+		- UseNativeFirstPerson = true uses Roblox's built-in LockFirstPerson
+		  camera mode; set it false to force the scripted CameraManager path.
+]]
+
 local SpectateClient = {}
 
 ---<>--- Variables ---<>---
 
+-- Server-side require: return a truthy stub so shared imports don't blow up.
 if not game:GetService("RunService"):IsClient() then return true :: main end
 
 local cam = workspace.CurrentCamera
@@ -12,6 +39,8 @@ local camManager = require(script:WaitForChild("CameraManager"))
 local curWatching = ourPlr
 local curCam : typeof(camManager)
 
+-- Remember the user's original CameraMode so StopWatching can restore it
+-- after a temporary LockFirstPerson spectate session.
 local prevCamMode = ourPlr.CameraMode
 
 local defaultOptions = {
@@ -70,6 +99,8 @@ function SpectateClient:Watch(toWatch : Player | Model | BasePart, options : {
 	ReturnToDefaultOnSelf : boolean,
 	})
 	if not toWatch then SpectateClient:StopWatching() return end
+	-- Always tear down any existing scripted camera before starting a new one,
+	-- otherwise they'd fight each other on RenderStepped.
 	if curCam then curCam:Destroy() curCam = nil camManager.close() end
 
 	options = getOptions(options)
@@ -90,9 +121,14 @@ function SpectateClient:Watch(toWatch : Player | Model | BasePart, options : {
 		curWatching = obj
 	end
 
+	-- Only apply the spectate-camera mode when we're watching *someone else*,
+	-- unless the caller explicitly wants it applied to self too.
 	if not options.ReturnToDefaultOnSelf or toWatch ~= ourPlr then
 		if options.SpectateType == "LockFirstPerson" then
 
+			-- Native path: just flip LocalPlayer.CameraMode. Only stash the
+			-- previous mode if it wasn't already LockFirstPerson, so repeated
+			-- Watch calls don't clobber our restore target.
 			if isPlr and options.UseNativeFirstPerson then
 				if ourPlr.CameraMode ~= Enum.CameraMode.LockFirstPerson then
 					prevCamMode = ourPlr.CameraMode
@@ -103,6 +139,8 @@ function SpectateClient:Watch(toWatch : Player | Model | BasePart, options : {
 				ourPlr.CameraMode = Enum.CameraMode.Classic
 			end
 
+			-- Scripted path: mount CameraManager on Head if we have one (gives a
+			-- face-level view), fall back to the model's PrimaryPart, or the BasePart itself.
 			local prim = obj:IsA("Model") and(obj:FindFirstChild("Head") or obj.PrimaryPart) or obj:IsA("BasePart") and obj
 			if not prim then return end
 

@@ -1,3 +1,32 @@
+--[[
+	Purpose:
+		Quick "flash" VFX helper. Two flavors combined:
+		  1) Highlight flash on a specific Instance (hit-feedback, pickups).
+		  2) Full-screen color wash via a ColorCorrectionEffect in Lighting
+		     (flashbangs, damage flashes).
+
+	When to use:
+		Damage numbers pop, crit indicators, flashbang grenades, collect pickups,
+		or any "something just happened, notice it" moment. One call, no cleanup
+		needed: the highlight destroys itself after FlashTime + FadeOut.
+
+	Example:
+		FlashController:Flash({
+			Object = hitPart,
+			Lighting = true,
+			HighlightConfig = { FillColor = Color3.new(1,0,0), FlashTime = 0.08 },
+			LightingConfig = { Color = Color3.new(1,0,0), FlashTime = 0.05 },
+		})
+
+	Gotchas:
+		- Client-only: the ColorCorrectionEffect is parented to Lighting at
+		  require time. Requiring this on the server will parent a stray effect.
+		- If Color is pure black the lighting effect goes NEGATIVE brightness
+		  (darken flash) instead of positive, so black = a "darken" pulse.
+		- `presets` table is empty; the Preset arg currently does nothing until
+		  you populate it.
+]]
+
 local FlashController = {}
 
 local presets = {
@@ -10,6 +39,9 @@ local presets = {
 
 ---<>--- Variables ---<>---
 
+-- Shared lighting effect reused across all flashes. Created once at require
+-- time so we don't churn Lighting instances per flash. Named "FlashEffect" so
+-- you can spot it in Explorer while debugging.
 local flashLightingEffect = Instance.new("ColorCorrectionEffect", game:WaitForChild("Lighting"))
 flashLightingEffect.Brightness = 1
 flashLightingEffect.Enabled = false
@@ -76,6 +108,9 @@ local function flashLighting(config : {})
 	flashLightingEffect.TintColor = set.Color
 	flashLightingEffect.Enabled = true
 
+	-- Pure black tint = "darken" flash (brightness -1), anything else = "brighten"
+	-- flash (brightness +1). Cheap way to support both flashbangs and shadow pulses
+	-- from the same effect without a separate flag.
 	if set.Color.R+set.Color.G+set.Color.B == 0 then
 		flashLightingEffect.Brightness = -1
 	else

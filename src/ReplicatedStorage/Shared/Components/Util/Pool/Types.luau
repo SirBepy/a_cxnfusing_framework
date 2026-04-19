@@ -3,6 +3,15 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose: Shared type exports for Pooler+ (ObjectPool<T>, Pooler, PoolConfig,
+	PoolStats, etc). Pure type surface, no runtime behavior.
+	When to use: require this to annotate pool-consuming code.
+	Example: local Types = require(Pool.Types); local p: Types.ObjectPool<Part> = ...
+	Gotchas: ObjectPoolImpl is the internal shape with _private fields; ObjectPool<T>
+	is the public shape. Use the public one unless you're poking internals.
+]]
+
 local SignalPlus = require(script.Parent.SignalPlus)
 
 local Types = {}

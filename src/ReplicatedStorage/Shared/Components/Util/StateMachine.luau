@@ -1,3 +1,32 @@
+--[[
+	StateMachine
+	------------
+	Purpose:
+		Tiny finite state machine. Each state is a ModuleScript under
+		`script.States` returning a table with optional CanEnter/OnEnter/
+		OnExit/Update functions. Instances share the same state registry.
+
+	When to use:
+		- Player/enemy AI loops, UI screens with enter/exit hooks, game-mode
+		  phases (Lobby -> Countdown -> Round -> Results).
+		- Anywhere you'd otherwise juggle a pile of booleans for "what mode
+		  are we in right now".
+
+	Example:
+		local sm = StateMachine.new("Idle")
+		sm.OnEnter:Connect(function(newState, prev) print("entered", newState) end)
+		sm:TryEnter("Attacking", targetPlayer)
+		sm:Update(deltaTime)
+
+	Gotchas:
+		- The `states` registry is module-level, every StateMachine instance
+		  shares it. If you need per-instance states, fork this.
+		- `:Init()` requires a `States` child folder on this script to exist.
+		  Call it once at boot before `.new`.
+		- `TryEnter` silently no-ops on unknown states and on CanEnter = false.
+		  Check `GetState()` if you need to confirm.
+--]]
+
 local StateMachine = {}
 StateMachine.__index = StateMachine
 
@@ -12,6 +41,8 @@ type StateMachine = typeof(StateMachine)
 
 local signal = require(script.Parent.Parent.Util.Signal)
 
+-- Module-level registry shared by every StateMachine instance. Keyed by
+-- state name (matches the child ModuleScript name under `script.States`).
 local states = {}
 
 ---<>--- Main Functions ---<>---
@@ -52,8 +83,12 @@ function StateMachine:TryEnter(newState : string, ...) : any
 	local state = states[newState]
 	if not state then return end
 
+	-- CanEnter acts as a veto. Lets states gate their own entry conditions
+	-- (e.g. "only enter Attack if cooldown ready") without the caller knowing.
 	if state.CanEnter and not state.CanEnter(self.CurrentState, ...) then return end
 
+	-- Exit the old state before entering the new one so OnExit always fires
+	-- before OnEnter. `nil` switchTo avoids the recursive re-entry path.
 	if self.CurrentState then
 		self:Exit(nil, ...)
 	end

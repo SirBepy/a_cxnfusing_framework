@@ -1,3 +1,29 @@
+--[[
+	TableExtended
+
+	Purpose:
+		Drop-in replacement for Luau's global `table` that adds extras
+		(currently just `merge`). Real `table` methods still resolve via
+		metatable fallback.
+
+	When to use:
+		Internal helper for `Imagine`. `local table = require(...)` shadows
+		the stdlib in that file so `table.merge`, `table.clone`, `table.insert`
+		all work off one name.
+
+	Example:
+		local t3 = table.merge({a=1,b=2}, {b=9,c=3}) -- {a=1, b=9, c=3}
+
+	Gotchas:
+		- Shadowing the global `table` is spicy but intentional; review
+		  suggests renaming to `TableExt` eventually.
+		- `merge` is NOT deep; nested tables are copied by reference.
+		- `lib = table.clone(table)` snapshots the stdlib at require time;
+		  in practice this is fine because `table` is frozen.
+]]
+
+-- Snapshot the real stdlib `table` so `extended` can fall back to it for
+-- any method it doesn't explicitly define.
 local lib = table.clone(table)
 local extended = {}
 setmetatable(extended, { __index = lib })

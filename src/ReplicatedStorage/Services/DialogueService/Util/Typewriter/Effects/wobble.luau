@@ -1,3 +1,10 @@
+-- Wobble effect. Each letter orbits its spawn position on a Lissajous
+-- pattern (sin on X, cos on Y at different speeds). The per-letter Index
+-- offset keeps adjacent characters out of phase so the text looks drunk
+-- instead of bouncing in sync.
+-- Returns the RenderStepped connection so the Typewriter can disconnect
+-- it on :Destroy.
+
 local RunService = game:GetService("RunService")
 local Shared = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"))
 

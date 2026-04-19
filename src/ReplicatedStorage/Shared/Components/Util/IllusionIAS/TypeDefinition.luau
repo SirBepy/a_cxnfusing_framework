@@ -1,9 +1,25 @@
 --!strict
 --TypeDefinition.luau
 --[[
-  //////////////////////
- // Type Declaration //
-//////////////////////
+	TypeDefinition (internal to IllusionIAS)
+	----------------------------------------
+	Purpose:
+		Central `export type` block for the IllusionIAS module so the init,
+		BindUtils and IllusionSignal files can all agree on one shape for
+		Bind / Binds / Object / Context / IAScriptSignal / etc.
+
+	When to use:
+		Only imported internally. Returns an empty table at runtime — this
+		file exists for its types, not its values.
+
+	Example:
+		local IAS = require("./TypeDefinition")
+		local b: IAS.Binds = { ... }
+
+	Gotchas:
+		- `variant` covers every InputActionType's value shape in one alias.
+		- `Object` is the public action API; if you add a method in init.luau,
+		  add its signature here too or --!strict will complain.
 ]]
 
 export type variant = boolean | number | Vector2 | Vector3

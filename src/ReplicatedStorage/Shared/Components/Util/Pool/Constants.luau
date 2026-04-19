@@ -3,6 +3,16 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose: Tunables for Pooler+. Timing intervals, memory thresholds, ratios,
+	sample caps, per-class reset property lists, priority values, and memory
+	estimates. Change here to retune the whole system.
+	When to use: tweak if a pool misbehaves (e.g. optimizes too often, resets
+	wrong properties on a custom Instance class).
+	Gotchas: memory thresholds are in MB (tuned for typical Roblox games, not
+	tiny experiences). PRIORITY_VALUES must match Types.PoolPriority keys.
+]]
+
 local Constants = {}
 
 -- timing intervals (in seconds)

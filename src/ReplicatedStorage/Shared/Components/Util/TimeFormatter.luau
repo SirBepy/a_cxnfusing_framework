@@ -1,5 +1,32 @@
+--[[
+	TimeFormatter (TimeUtil)
+	------------------------
+	Purpose:
+		Turns raw seconds into human-friendly strings. Clock style (MM:SS,
+		HH:MM:SS, DD:HH:MM:SS) or long style (1d 2h 3m 4s), with an optional
+		SmartFormat that picks the right resolution based on how big the
+		number is.
+
+	When to use:
+		Countdown timers, round timers, playtime displays, cooldown labels,
+		anywhere you have a number of seconds and need text.
+
+	Example:
+		TimeUtil.FormatMS(65, true)     -- "01:05"
+		TimeUtil.FormatLong(3665)       -- "1h 1m 5s"
+		TimeUtil.SmartFormat(90, true)  -- "01:30"
+
+	Gotchas:
+		- Inputs are expected to be whole seconds. Fractional seconds get
+		  truncated by the `% 60` + floor math, so pass math.floor(t) if you
+		  care.
+		- Negative / zero input always returns the zero-string for that
+		  format, not a negative clock.
+]]
+
 local TimeUtil = {}
 
+-- Zero-pads a number to 2 digits, e.g. 5 -> "05". Used everywhere for clock look.
 local function pad(n)
 	return string.format("%02d", n)
 end

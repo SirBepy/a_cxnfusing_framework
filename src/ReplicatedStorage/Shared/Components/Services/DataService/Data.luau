@@ -1,3 +1,36 @@
+--[[
+	Data
+
+	Purpose:
+		The in-memory observable wrapper around a player's data table. Holds the
+		raw data, lets you get/set by path, and hands out signals that fire when
+		specific paths change. Both DataServiceServer and DataServiceClient build
+		one of these per player (server) / one total (client) to back their APIs.
+
+	When to use:
+		Usually you won't touch this directly - go through DataService.server or
+		DataService.client. Only reach in here if you need a standalone observable
+		table outside the networked flow (rare).
+
+	Example:
+		local data = Data.new({ currency = 0, inventory = {} })
+		data:set({ "currency" }, 100)
+		data:getChangedSignal({ "currency" }):Connect(function(new, prev)
+			print("currency:", prev, "->", new)
+		end)
+		data:arrayInsert({ "inventory" }, "Sword")
+
+	Gotchas:
+		- Paths are either a single string key or an array of string/number keys
+		  for nested walks. Numeric keys in an array path get stringified with a
+		  leading "#" when building the signal key - that's internal but means
+		  `{ "inv", 1 }` and `{ "inv", "1" }` are different signal buckets.
+		- Signals returned by `getChangedSignal` etc. are held weakly until you
+		  Connect/Once them; after that they're kept strong until disconnected.
+		  Don't store them long-term without a live connection or they may GC.
+		- No server/client gating here; this file is safe on both contexts.
+]]
+
 local Packages = script.Parent
 local Signal = require(Packages.Signal)
 
@@ -37,6 +70,9 @@ function Data.new<T>(data: T): Data<T>
 			arrayInserted = {},
 			arrayRemoved = {},
 		},
+		-- Strong refs above hold signals that have live connections so Fire has
+		-- something to dispatch to. Weak refs below let us hand the same signal
+		-- back to repeat callers without leaking if nobody ever connects.
 		_weakSignals = {
 			changed = setmetatable({}, { __mode = "v" }),
 			indexChanged = setmetatable({}, { __mode = "v" }),
@@ -219,6 +255,10 @@ function Data._getSignal<T>(self: Data<T>, path: Path, signalType: string): Sign
 
 	signal = Signal.new()
 	weakSignals[pathString] = signal
+	-- Wrap Connect/Once so the first connection promotes the signal into the
+	-- strong table (keeping it alive) and the last disconnect demotes it back.
+	-- That's the whole point of the weak/strong split - zero-listener signals
+	-- are free to GC, listened-to signals stick around.
 	local connCreators = { Connect = signal.Connect, Once = signal.Once }
 	local connCount = 0
 	local strongSignals = self._signals[signalType]

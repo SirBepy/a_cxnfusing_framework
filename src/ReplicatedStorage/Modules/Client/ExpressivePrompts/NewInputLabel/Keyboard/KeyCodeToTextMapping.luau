@@ -1,3 +1,20 @@
+--[[
+	KeyCodeToTextMapping
+	--------------------
+	Purpose:
+		Overrides the raw string Roblox returns for certain KeyCodes with a
+		friendlier label ("Ctrl" instead of the raw control character,
+		"F1"-"F12" since GetStringForKeyCode often returns blanks for those).
+
+	When to use:
+		Third-tier fallback in Keyboard/init.luau, used only when neither
+		KeyboardButtonImage nor KeyboardButtonIconMapping matched.
+
+	Gotchas:
+		- LeftControl and RightControl both map to "Ctrl"; same deal for Alt.
+		  Dev can set either KeyboardKeyCode and get the same readable label.
+]]
+
 return {
 	[Enum.KeyCode.LeftControl] = "Ctrl",
 	[Enum.KeyCode.RightControl] = "Ctrl",

@@ -1,8 +1,32 @@
 --!optimize 2
 
 --[[
+	Signal (SignalPlus, vendored)
 
-           +++                                                                                      
+	Purpose:
+		Third-party lightweight signal implementation used everywhere in
+		DialogueService (OpenUI, CloseUI, StateChanged, etc). Creates
+		Roblox-style event objects with Connect / Once / Wait / Fire.
+
+	When to use:
+		`local signal = require(...); local mySig = signal()`. Treat like
+		a RBXScriptSignal. Do NOT modify this file when upgrading
+		comments elsewhere; it's maintained upstream (see link below).
+
+	Example:
+		local s = signal()
+		s:Connect(function(x) print("got", x) end)
+		s:Fire(42)
+
+	Gotchas:
+		- This is vendored code (MIT). Keep the license block intact.
+		- Fire uses task.defer + recycled threads, so connected callbacks
+		  run on the NEXT resumption, not synchronously.
+--]]
+
+--[[
+
+           +++
        ++++++++   ===                                                                               
     ++++++++++   ====                                                  ====                         
      ++++++                                                            ====                         

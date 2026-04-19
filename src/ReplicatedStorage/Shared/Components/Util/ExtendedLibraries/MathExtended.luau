@@ -1,3 +1,30 @@
+--[[
+	MathExtended — namespace-extension for Luau's `math`
+	----------------------------------------------------
+	Purpose:
+		Rounding to a step, averaging, lerp / inverseLerp / map (like
+		Unity's Mathf), and angle normalization. Bread-and-butter helpers
+		the built-in math library is missing.
+
+	When to use:
+		Tween math, remapping ranges (e.g. input 0-1 to UI pixels),
+		snapping to grids, any time you want to shorten a common formula.
+
+	Example:
+		local math = require(Shared.Util.ExtendedLibraries).math
+		local percent = math.inverseLerp(0, 100, 37)  -- 0.37
+		local pixels  = math.map(percent, 0, 1, 0, 500)
+		local snapped = math.roundToNearest(value, 0.25)
+
+	Gotchas:
+		- map returns outMin if inMin == inMax (no divide-by-zero, but no
+		  interpolation either).
+		- All helpers assert and throw on non-numbers; wrap in pcall if you
+		  want forgiving behavior.
+]]
+
+-- Clone vanilla `math` and fall back through the metatable so math.pi,
+-- math.random, etc. still work on the extended table.
 local lib = table.clone(math)
 local extended = {}
 setmetatable(extended, { __index = lib })
@@ -99,6 +126,8 @@ function extended.map(
 end
 
 --Normalizes an angle to [0-360] range
+-- The double-mod trick handles negative inputs: e.g. -30 % 360 = 330 on Luau,
+-- but we add 360 then mod again to be safe across engines/number quirks.
 function extended.normalizeAngle(angle : number)
 	return (angle % 360 + 360) % 360
 end

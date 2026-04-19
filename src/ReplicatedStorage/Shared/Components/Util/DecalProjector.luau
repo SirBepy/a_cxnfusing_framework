@@ -1,3 +1,31 @@
+--[[
+	Purpose:
+		Stamps a textured decal onto whatever a raycast hit, aligned to the
+		surface normal. Auto-cleans after Lifetime + optional FadeTime.
+
+	When to use:
+		Bullet holes, blood splats, scorch marks, paintball hits, footprints.
+		Anything where you already have a RaycastResult and want to leave a
+		short-lived visual mark.
+
+	Example:
+		local result = workspace:Raycast(origin, direction * 500)
+		DecalProjector:Project(result, {
+			Texture = "rbxassetid://12345",
+			Size = Vector2.new(1.5, 1.5),
+			Lifetime = 5,
+			FadeTime = 1,
+		})
+
+	Gotchas:
+		- Hosts decals on an anchored Part inside a workspace.Debris folder.
+		  Decal parts are CanCollide/CanTouch/CanQuery = false so they don't
+		  interfere with gameplay raycasts.
+		- Offsets the part by 0.05 studs along the normal to avoid z-fighting
+		  with the hit surface.
+		- Silently no-ops if result or Texture is missing.
+]]
+
 local DecalProjector = {}
 
 ---<>--- Variables ---<>---
@@ -50,6 +78,9 @@ function DecalProjector:Project(result: RaycastResult, config: {
 	local surfacePos = result.Position
 	local surfaceNormal = result.Normal
 
+	-- Nudge 0.05 studs along the normal so the decal doesn't z-fight with the
+	-- underlying surface. lookAt aims the part's -Z at the surface, which is
+	-- the face Decals render on when Decal.Face = Front (the default).
 	part.CFrame = CFrame.lookAt(surfacePos + (surfaceNormal * 0.05), surfacePos + surfaceNormal)
 
 	local decal = Instance.new("Decal", part)

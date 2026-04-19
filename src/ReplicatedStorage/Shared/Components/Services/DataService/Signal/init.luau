@@ -1,3 +1,31 @@
+--[[
+	Signal (vendored, bundled here for DataService)
+
+	Purpose:
+		Standard batched yield-safe signal. Used internally by Data.luau for
+		changed/indexChanged/arrayInserted/arrayRemoved notifications.
+
+	When to use:
+		Don't reach in here directly; consume through Data:getChangedSignal etc.
+		If you need a general-purpose signal elsewhere, prefer the framework's
+		`Shared/Components/Util/Signal.luau` (also vendored) to avoid picking
+		up two copies in one module graph.
+
+	Example:
+		-- handled internally:
+		local sig = Signal.new()
+		sig:Connect(function(...) end)
+		sig:Fire(42)
+
+	Gotchas:
+		- VENDORED by stravant/sleitnick. Don't restyle or patch; if you need
+		  upstream fixes, pull fresh from the source.
+		- Known duplication: an identical implementation lives at
+		  `Shared/Components/Util/Signal.luau`. Long-term we should collapse
+		  these to one copy.
+		- Neutral file, safe on both server and client.
+]]
+
 -- -----------------------------------------------------------------------------
 --               Batched Yield-Safe Signal Implementation                     --
 -- This is a Signal class which has effectively identical behavior to a       --

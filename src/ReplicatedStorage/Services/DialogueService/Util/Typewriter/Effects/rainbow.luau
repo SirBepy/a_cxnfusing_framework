@@ -1,3 +1,7 @@
+-- Rainbow effect. Cycles TextColor3 through HSV hues over time. `length`
+-- is the cycle period in seconds; each letter is phase-shifted by its
+-- Index so the colour travels across the word.
+
 local RunService = game:GetService("RunService")
 
 local length = 10

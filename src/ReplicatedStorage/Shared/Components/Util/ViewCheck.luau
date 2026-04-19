@@ -1,3 +1,27 @@
+--[[
+	Purpose:
+		Tiny "can the camera actually see this world position?" helper. Combines
+		an on-screen check (viewport) with a line-of-sight raycast from the
+		camera to the target.
+
+	When to use:
+		Gate nameplates, quest markers, or VFX so they only run/show when
+		visible. Skip expensive client logic for things off-screen or occluded.
+
+	Example:
+		if ViewCheck.IsVisible(npc.HumanoidRootPart.Position, { localPlayerCharacter }) then
+			nameplate.Enabled = true
+		end
+
+	Gotchas:
+		- Client-only (uses workspace.CurrentCamera).
+		- The RaycastParams object is module-level and shared. Concurrent
+		  callers mutate each other's FilterDescendantsInstances. Fine in
+		  single-threaded Luau, but be aware if you ever switch to parallel.
+		- IsOnScreen only checks viewport, not frustum-clip behind the camera
+		  cleanly; WorldToViewportPoint's second return covers that.
+]]
+
 local ViewCheck = {}
 
 ---<>--- Variables ---<>---

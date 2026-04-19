@@ -1,5 +1,32 @@
+--[[
+	DebugUtils
+	----------
+	Purpose:
+		Tiny grab-bag of debug helpers: safe pcalls, a code-timer, instance
+		profiler, and visual debug shapes (lines, spheres, boxes) drawn in
+		workspace.Debug so you can *see* raycasts, hitboxes, positions, etc.
+
+	When to use:
+		Dev-time only. Drop NewLine / NewSphere / NewBox into gameplay code
+		while tracing a bug, remove (or guard) before shipping. SafeCall and
+		TimeBlock are fine to leave in temporarily while profiling.
+
+	Example:
+		DebugUtils.NewSphere(hitPos, { color = Color3.new(1,0,0), lifetime = 3 })
+		DebugUtils.TimeBlock("PathSolve", function() solvePath() end)
+
+	Gotchas:
+		- All debug parts spawn under workspace.Debug (auto-created). They are
+		  server-visible if called on the server, client-local if called on the
+		  client. Pick accordingly.
+		- lifetime=0 means the part lives forever until you clean it up.
+		- NewBox currently builds a Ball shape (see shared-review.md). Kept as
+		  is so existing callers don't silently change visuals.
+]]
+
 local DebugUtils = {}
 
+-- One shared parent folder so the debug visuals are easy to nuke in one go.
 local debugParent = workspace:FindFirstChild("Debug") or Instance.new("Folder", workspace)
 debugParent.Name = "Debug"
 
@@ -52,7 +79,9 @@ function DebugUtils.NewLine(from : Vector3, to : Vector3, config : {lifetime : n
 
 	local p = newPart()
 
+	-- Position at midpoint and aim the Z axis at 'to' so length = distance.
 	p.CFrame = CFrame.new((from+to)/2, to)
+	-- X/Y = thickness, Z = full distance between points.
 	p.Size = Vector3.new(config.thickness or 0.1, config.thickness or 0.1,(from-to).Magnitude)
 	p.Color = config.color or Color3.new(1,0,0)
 	p.Transparency = config.transparency or 0.5

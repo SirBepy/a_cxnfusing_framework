@@ -1,3 +1,7 @@
+-- Wave effect. Bobs each letter up and down on a sine wave, phase-shifted
+-- by the letter's Index so the wave ripples across the word instead of
+-- every character moving together.
+
 local RunService = game:GetService("RunService")
 
 return function(label: TextLabel, data: {Index : number})

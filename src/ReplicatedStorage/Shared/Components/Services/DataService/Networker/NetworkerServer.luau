@@ -1,4 +1,30 @@
 --!strict
+--[[
+	NetworkerServer
+
+	Purpose:
+		Server half of Networker. Creates the RemoteEvent/RemoteFunction pair
+		under a named folder, routes incoming client calls through a whitelist,
+		and gives the server helpers to push messages to one player, a group,
+		all players, or tracked "recipients".
+
+	When to use:
+		Instantiated by a server service that wants a replication channel. The
+		canonical use is DataServiceServer.
+
+	Example:
+		local net = NetworkerServer.new("Chat", ChatService, { ChatService.send })
+		net:fireAll("broadcast", "server going down")
+
+	Gotchas:
+		- SERVER-ONLY. The `.new` constructor asserts on the client.
+		- Client calls are only dispatched if the method is in the `clientAccess`
+		  list passed at construction (or added via `addClientAccess`). Anything
+		  else is warn-and-drop.
+		- The single `_remotes` folder under this script holds every networker's
+		  folder. Don't rename or parent-shuffle it.
+]]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
@@ -117,6 +143,10 @@ end
 	@return ()  
 ]=]
 function NetworkerServer.addClientAccess(self: NetworkerServer, module: any, methods: { any }): ()
+	-- Reverse-lookup the function ref in the module to find its key name. We
+	-- store access by name (what the client sends) -> function ref, so the
+	-- client never needs to know internal names; it sends whatever key the
+	-- server's module uses.
 	local function addAccess(accessModule: any)
 		for _, method in methods do
 			for funcName, func in accessModule do
@@ -137,6 +167,8 @@ function NetworkerServer.addClientAccess(self: NetworkerServer, module: any, met
 
 	addAccess(module)
 
+	-- Also walk one level of metatable.__index so class-style modules (where
+	-- methods live on the prototype, not the instance) expose correctly.
 	local metatable = getmetatable(module)
 	local metatableModule = if metatable then metatable.__index else metatable
 	if metatableModule then

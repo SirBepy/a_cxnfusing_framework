@@ -1,3 +1,8 @@
+-- Glitch effect. Clones the label twice (pink + cyan) and offsets them
+-- by +/- 1px to fake chromatic aberration, then randomly flickers each
+-- clone on for ~0.1s. Heavier than other effects (spawns 2 extra Guis
+-- per character) so use sparingly.
+
 local RunService = game:GetService("RunService")
 
 return function(label: TextLabel, data: {Index : number})

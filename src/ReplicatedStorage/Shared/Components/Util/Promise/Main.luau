@@ -1,5 +1,27 @@
 --[[
-	An implementation of Promises similar to Promise/A+.
+	Purpose:
+		evaera's roblox-lua-promise runtime. Promise/A+ style async primitives
+		with cancellation propagation (unique to this lib). Exposed publicly
+		through ../init.luau which adds the typed facade.
+
+	When to use:
+		- Implementation file. Touch it only if you need to tweak Promise
+		  internals. For everyday use, just require the Promise module.
+
+	Example:
+		-- public usage is documented in ../init.luau
+		Promise.new(function(resolve) resolve(42) end):andThen(print)
+
+	Gotchas:
+		- Cancellation walks BOTH directions: parents cancel children, and if
+		  ALL children of a parent are cancelled, the parent auto-cancels too
+		  (see _consumerCancelled). Don't rely on a promise staying alive if
+		  its last consumer cancels.
+		- Unhandled rejections warn after one Heartbeat tick if no catch/finally
+		  is attached. Attach catch or done to silence.
+		- _consumers is a weak-keyed table (MODE_KEY_METATABLE) so GC can
+		  collect forgotten child promises.
+		- Resolving with another Promise chains to it (adopts its value/error).
 ]]
 
 local ERROR_NON_PROMISE_IN_LIST = "Non-promise value passed into %s at index %s"
@@ -210,6 +232,7 @@ function Promise._new(traceback, callback, parent)
 
 		-- Lua doesn't like sparse arrays very much, so we explicitly store the
 		-- length of _values to handle middle nils.
+		-- (Resolving with (1, nil, 3) would otherwise lose the 3 via #_values.)
 		_valuesLength = -1,
 
 		-- Tracks if this Promise has no error observers..

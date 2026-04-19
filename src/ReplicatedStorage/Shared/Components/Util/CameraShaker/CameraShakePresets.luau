@@ -1,18 +1,31 @@
 -- Camera Shake Presets
 -- Stephen Leitnick
 -- February 26, 2018
+--
+-- VENDORED: Part of Sleitnick's RbxCameraShaker. Don't restyle.
 
 --[[
-	
-	CameraShakePresets.Bump
-	CameraShakePresets.Explosion
-	CameraShakePresets.Earthquake
-	CameraShakePresets.BadTrip
-	CameraShakePresets.HandheldCamera
-	CameraShakePresets.Vibration
-	CameraShakePresets.RoughDriving
-	
---]]
+	Purpose:
+		Named, pre-tuned CameraShakeInstance factories. Indexing the returned
+		table calls the factory, so you always get a fresh instance (can't
+		accidentally reuse a faded-out one).
+
+	When to use:
+		Whenever you want a quick, good-enough feel without tuning magnitudes
+		yourself. Example: CameraShaker.Presets.Explosion for grenades.
+
+	Example:
+		camShake:Shake(CameraShaker.Presets.Explosion)
+		camShake:ShakeSustain(CameraShaker.Presets.Earthquake)
+
+	Gotchas:
+		- The __index metamethod CALLS the factory each access. That means
+		  `local p = Presets.Explosion; camShake:Shake(p); camShake:Shake(p)`
+		  uses the same fading instance twice (it'll be half-done on the second
+		  call). Grab a fresh one each time: `camShake:Shake(Presets.Explosion)`.
+		- Presets are categorized by "once" vs "sustained" via the fadeIn > 0
+		  rule inside CameraShakeInstance.new.
+]]
 
 
 

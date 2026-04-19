@@ -1,9 +1,37 @@
 -- Camera Shaker
 -- Stephen Leitnick
 -- February 26, 2018
+--
+-- VENDORED: This module was not written by the framework author. It's Sleitnick's
+-- RbxCameraShaker, included as-is. Don't restyle it to match the rest of the codebase
+-- (keeps diff noise low if we ever pull upstream fixes).
 
 --[[
-	
+	Purpose:
+		Perlin-noise-driven camera shake. Runs on RenderStep, sums active shake
+		instances, and feeds a CFrame offset to your callback each frame so you
+		can combine it with whatever camera logic you already have.
+
+	When to use:
+		Any time you want a screen shake: explosions, footsteps, earthquakes,
+		vehicle vibration, etc. Use presets for common feels, or build your own
+		via ShakeOnce/StartShake/ShakeSustain.
+
+	Example:
+		local camShake = CameraShaker.new(Enum.RenderPriority.Camera.Value, function(shakeCFrame)
+			camera.CFrame = playerCFrame * shakeCFrame
+		end)
+		camShake:Start()
+		camShake:Shake(CameraShaker.Presets.Explosion)
+
+	Gotchas:
+		- Your callback is responsible for applying the offset to the camera; this
+		  module doesn't touch workspace.CurrentCamera itself.
+		- CameraShaker.Presets.X returns a FRESH instance every access (metatable
+		  trick). Good: you can't accidentally reuse a fading-out instance. Weird:
+		  two references to Presets.Explosion are different objects.
+		- ShakeOnce fades in instantly; StartShake fades in gradually.
+
 	CameraShaker.CameraShakeInstance
 	
 	cameraShaker = CameraShaker.new(renderPriority, callbackFunction)

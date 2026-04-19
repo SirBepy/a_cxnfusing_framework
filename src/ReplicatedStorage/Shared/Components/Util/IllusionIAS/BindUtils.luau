@@ -1,15 +1,36 @@
 --!strict
 --BindUtils.luau
 --[[
-  //////////////////////
- //   Bind Utility   //
-//////////////////////
+	BindUtils (internal to IllusionIAS)
+	-----------------------------------
+	Purpose:
+		Pure-data helpers for manipulating an action's Binds table
+		({ [bindName] = { KeyCode, PrimaryModifier, SecondaryModifier } }).
+		Add/remove binds, clone, diff one snapshot against another, and
+		produce a structured change list so the main module knows which
+		InputAction instances to create/modify/destroy.
+
+	When to use:
+		You don't. This is internal plumbing for IllusionIAS. Use
+		IllusionIAS's AddBind/SetBind/RemoveBind/EditBind instead.
+
+	Example (internal):
+		local isEqual, diff = BindUtils.CheckDifferences(oldBinds, newBinds)
+		local changes = BindUtils.GetDifference(oldBinds, diff)
+
+	Gotchas:
+		- REMOVED is a sentinel value (all-Unknown bind) that CheckDifferences
+		  writes into the diff map when a bind disappeared. ApplyDifferences
+		  and GetDifference both look for it.
+		- Functions mutate the table you pass in. Clone first if you care.
 ]]
 
 local BindUtils = {}
 
 local IAS = require("./TypeDefinition")
 
+-- Sentinel bind marking "this entry was deleted" inside a diff table.
+-- Identity-compared via `diff == REMOVED` so don't mutate it.
 local REMOVED: IAS.Bind = {
 	KeyCode = Enum.KeyCode.Unknown,
 	PrimaryModifier = Enum.KeyCode.Unknown,
@@ -71,6 +92,8 @@ function BindUtils.ClearModifiers(binds, name)
 end
 
 function BindUtils.ResetBinds(binds: IAS.Binds): boolean
+	-- Wipe everything then re-seed MainAction as empty — every action
+	-- always has at least a MainAction slot so the diff logic stays simple.
 	for name in binds do
 		binds[name] = nil
 	end

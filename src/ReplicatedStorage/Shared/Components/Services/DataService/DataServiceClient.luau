@@ -1,6 +1,39 @@
+--[[
+	DataServiceClient
+
+	Purpose:
+		Client-side mirror of the server's player data. Receives the initial
+		snapshot from the server, applies replicated set/arrayInsert/arrayRemove
+		ops, and exposes the same read API plus change signals for UI to bind to.
+
+	When to use:
+		In any LocalScript that needs to read player data or react to changes
+		(HUD, inventory UIs, settings menus, tutorial steppers).
+
+	Example:
+		local DataService = require(path.to.DataService).client
+		DataService:init()
+		print(DataService:get({ "currency" }))
+		DataService:getChangedSignal({ "currency" }):Connect(function(new)
+			updateCurrencyLabel(new)
+		end)
+
+	Gotchas:
+		- CLIENT-ONLY. Requiring `.client` on the server hits the stub return
+		  below and every method will be nil. Use `.server` on the server.
+		- `:init(...)` yields until the server has sent the initial snapshot.
+		  Don't call read methods before init finishes or you'll yield in them
+		  via waitForData.
+		- `:set`, `:update`, `:arrayInsert`, `:arrayRemove` on the client only
+		  mutate the LOCAL mirror - they do NOT replicate back to the server.
+		  Use these for purely client-side UI state / predictions.
+]]
+
 local RunService = game:GetService("RunService")
 
 if RunService:IsServer() then
+	-- Server import of the client module: hand back an empty stub. The paired
+	-- `.server` module is what server code should use. See `init.luau`.
 	return {} :: DataServiceClient
 end
 
@@ -286,6 +319,10 @@ function DataServiceClient._initData(self: DataServiceClient, data: any): ()
 	waitSignal:Fire()
 end
 
+-- Expose the mutation methods under their numeric enum keys too. The server
+-- fires replication messages using the enum ids (smaller payload than method
+-- names), and NetworkerClient dispatches by looking up `module[method]` - so
+-- these alias rows are what make the replication actually land.
 DataServiceClient[DataServiceUtils.enums.actions.set] = DataServiceClient.set
 DataServiceClient[DataServiceUtils.enums.actions.arrayInsert] = DataServiceClient.arrayInsert
 DataServiceClient[DataServiceUtils.enums.actions.arrayRemove] = DataServiceClient.arrayRemove

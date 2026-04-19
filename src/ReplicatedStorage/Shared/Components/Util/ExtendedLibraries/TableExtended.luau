@@ -1,3 +1,27 @@
+--[[
+	TableExtended — namespace-extension for Luau's `table`
+	------------------------------------------------------
+	Purpose:
+		Adds `merge` (shallow-merge two tables, second wins on conflicts)
+		to the vanilla `table` library. Small today, but the file is the
+		home for any future table helpers we collect.
+
+	When to use:
+		Anywhere you'd write the classic "copy defaults, override with
+		user options" pattern for config tables.
+
+	Example:
+		local table = require(Shared.Util.ExtendedLibraries).table
+		local options = table.merge(DEFAULTS, userOverrides)
+
+	Gotchas:
+		- merge is shallow. Nested tables are shared references, not deep
+		  copies. If you need deep merge, write it.
+		- All original `table.insert`, `table.clone`, ... still work via the
+		  metatable fallback.
+]]
+
+-- Same wrapper pattern as the other Extended libs.
 local lib = table.clone(table)
 local extended = {}
 setmetatable(extended, { __index = lib })

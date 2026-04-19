@@ -1,8 +1,36 @@
 --!optimize 2
 
 --[[
+	Purpose:
+		SignalPlus: tiny, fast, typed signal (Connect/Once/Wait/Fire). Use it as
+		a custom event for your own code (like BindableEvent but lighter and
+		with real Luau generics).
 
-           +++                                                                                      
+	When to use:
+		- Broadcasting events inside your own module (player died, round ended,
+		  UI opened, etc).
+		- Replacing BindableEvents where you don't need cross-script boundaries.
+		- Anywhere you'd want RBXScriptSignal semantics on a plain table.
+
+	Example:
+		local Signal = require(path.to.Signal)
+		local onJump: Signal.Signal<Player, number> = Signal()
+		local conn = onJump:Connect(function(plr, power) print(plr, power) end)
+		onJump:Fire(somePlayer, 50)
+		conn:Disconnect()
+
+	Gotchas:
+		- Fire reuses pooled threads, so callbacks never block each other but
+		  also never share thread identity across fires.
+		- Setting the "Deferred" attribute on the script flips Fire to task.defer
+		  (runs callbacks on next resume step instead of immediately).
+		- Destroy wipes the metatable: any further method call on the signal errors.
+		- Wait yields until NEXT fire, past fires are not queued.
+]]--
+
+--[[
+
+           +++
        ++++++++   ===                                                                               
     ++++++++++   ====                                                  ====                         
      ++++++                                                            ====                         
@@ -106,10 +134,12 @@ type CreateSignal = typeof(
 	function(): Signal end
 )
 
--- Spawn function.
+-- Spawn function. Attribute lets a project opt into deferred-style firing without
+-- forking the module. task.spawn = immediate; task.defer = next resumption cycle.
 local spawnThread = if script:GetAttribute("Deferred") then task.defer else task.spawn
 
--- Setup callback threads.
+-- Free list of reusable coroutines. Every Fire grabs from here instead of spawning
+-- fresh threads, which is the main reason this module is fast.
 local threads = {}
 
 local function reusableThreadCall(callback, thread, ...)
@@ -274,6 +304,8 @@ Signal.Wait = function(signal)
 end
 
 Signal.Fire = function(signal, ...)
+	-- Walk tail->head so connections added DURING this fire (which go to the head)
+	-- don't accidentally get invoked in the same fire cycle.
 	local connection = signal.Tail -- Start from the tail (back) of the list.
 	while connection do
 		-- Find or create a thread, then run the callback in it.

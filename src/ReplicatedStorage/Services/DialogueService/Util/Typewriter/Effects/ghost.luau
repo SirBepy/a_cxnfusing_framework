@@ -1,3 +1,6 @@
+-- Ghost effect. Oscillates TextTransparency so the letter fades in and
+-- out. Index-based phase offset staggers the fade across the word.
+
 local RunService = game:GetService("RunService")
 
 return function(label: TextLabel, data: {Index : number})

@@ -1,3 +1,29 @@
+--[[
+	Vector3Extended — namespace-extension for Luau's `Vector3`
+	----------------------------------------------------------
+	Purpose:
+		Adds the Vector3 helpers you always end up writing: distance,
+		direction, midpoint, rounding to a grid, reflect off a normal,
+		flatten a component, project one vector onto another.
+
+	When to use:
+		Gameplay math where the built-in methods feel a tiny bit too bare.
+		Use anywhere you'd use `Vector3` and want a more complete toolkit.
+
+	Example:
+		local Vector3 = require(Shared.Util.ExtendedLibraries).Vector3
+		local dir = Vector3.getDirection(playerPos, targetPos)
+		local onGrid = Vector3.roundVector(pos, 4)
+
+	Gotchas:
+		- Every helper asserts input types and throws on bad args — they
+		  are not silent. Wrap in pcall if you want soft failure.
+		- The wrapper is a separate table; `Vector3.new` still works via
+		  the metatable fallback.
+]]
+
+-- Same pattern as the other Extended libraries: clone the real Vector3
+-- table then __index-fallback so originals (Vector3.new, Vector3.zero, ...) remain.
 local lib = table.clone(Vector3)
 local extended = {}
 setmetatable(extended, { __index = lib })
@@ -76,6 +102,7 @@ function extended.reflectOffNormal(vec: Vector3, normal: Vector3): Vector3
 		return vec
 	end
 
+	-- Standard reflection formula: r = v - 2(v·n)n, with n normalized.
 	local n = normal.Unit
 	return vec - 2 * vec:Dot(n) * n
 end

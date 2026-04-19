@@ -3,6 +3,15 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose: Human-readable / JSON pool reports. Print summaries, build perf
+	reports, serialize state, analyze single pools, generate tuning recs.
+	When to use: diagnostics. Pooler:DebugPrintAllPools / GetPerformanceReport
+	/ ExportPoolStates wrap the public surface.
+	Gotchas: uses HttpService:JSONEncode, requires HttpService enabled (server
+	usually, studio always). analyzePool output can get large on busy pools.
+]]
+
 local HttpService = game:GetService("HttpService")
 local Stats = game:GetService("Stats")
 

@@ -1,3 +1,29 @@
+--[[
+	Purpose:
+		Scrolls a tiled ImageLabel/ImageButton's position each frame so the
+		texture looks like it's flowing. Classic "conveyor belt" / "parallax
+		clouds" / "scrolling background" trick.
+
+	When to use:
+		Animated UI backgrounds, loading-screen patterns, moving texture FX on
+		GUIs. Anything where you want a tiled image to slide continuously
+		without baking it into a video.
+
+	Example:
+		local anim = Imagine.apply(someImageLabel)
+		anim:Animate({ XSpeed = 50, YSpeed = 0, XTileAmount = 3, YTileAmount = 3 })
+		-- later:
+		anim:Unapply()
+
+	Gotchas:
+		- Client-only: uses RenderStepped.
+		- The ImageLabel must use TileSize (ScaleType = Tile) for the wrap math
+		  to make sense.
+		- Size gets overwritten to UDim2.fromScale(XTileAmount, YTileAmount)
+		  because the wrap math relies on Size.X.Scale != 0.
+		- Unapply nukes the metatable; don't reuse the object after calling it.
+]]
+
 local Imagine = {}
 Imagine.__index = Imagine
 
@@ -52,10 +78,14 @@ function Imagine:Animate(
 		local frameSizeX = absSize.X/image.Size.X.Scale
 		local frameSizeY = absSize.Y/image.Size.Y.Scale
 
-		local closestPointX = 
+		-- Snap the wrap-around point to the nearest whole tile boundary. Reset
+		-- once the scroll distance exceeds that boundary so the pattern jumps
+		-- back by exactly N tiles, hiding the reset (the image looks identical
+		-- at every tile boundary, so the viewer never sees the snap).
+		local closestPointX =
 			math.floor((absSize.X-frameSizeX)/tileSize.X.Offset)
 			* tileSize.X.Offset
-		local closestPointY = 
+		local closestPointY =
 			math.floor((absSize.Y-frameSizeY)/tileSize.Y.Offset)
 			* tileSize.Y.Offset
 

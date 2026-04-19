@@ -1,6 +1,37 @@
 -- Trove
 -- Stephen Leitnick
 -- October 16, 2021
+
+--[[
+	Purpose:
+		A Trove is a bag of cleanup tasks. Throw anything in (Instances, connections,
+		functions, threads, tables with Destroy/Disconnect, promises, futures) and
+		then call :Clean() or :Destroy() to tear it all down in one go. Saves you
+		from writing the same "disconnect this, destroy that" boilerplate in every
+		class.
+
+	When to use:
+		- Any object that owns other objects (Instances, connections, timers, etc).
+		- Components/controllers that need a single teardown point.
+		- Prefer over hand-rolled cleanup lists. It handles the type sniffing for you.
+
+	Example:
+		local trove = Trove.new()
+		local part = trove:Add(Instance.new("Part"))
+		trove:Connect(part.Touched, function(hit) print(hit.Name) end)
+		trove:Add(function() print("custom cleanup") end)
+		-- later:
+		trove:Destroy() -- part destroyed, connection dropped, function fired
+
+	Gotchas:
+		- Can't add/remove/construct while :Clean() is running, it errors.
+		- Cleanup order is NOT guaranteed, don't rely on it.
+		- :AttachToInstance requires the instance already be under game, else throws.
+		- AddPromise/AddFuture assume a specific promise/future shape, will assert.
+]]
+
+-- Unique sentinels. Used as the "cleanup method" for raw functions / threads so
+-- _cleanupObject knows which branch to take without guessing from the object again.
 local FN_MARKER = newproxy()
 local THREAD_MARKER = newproxy()
 local GENERIC_OBJECT_CLEANUP_METHODS = { "Destroy", "Disconnect", "destroy", "disconnect" }
@@ -198,6 +229,8 @@ function Trove:Once(signal, fn)
 	connection = signal:Connect(function(...)
 		fn(...)
 		connection:Disconnect()
+		-- Already disconnected above, so pass cleanup=false to just drop the
+		-- bookkeeping entry without double-disconnecting.
 		self:_findAndRemoveFromObjects(connection, false)
 	end)
 	return self:Add(connection)
@@ -403,6 +436,7 @@ function Trove:_findAndRemoveFromObjects(object: any, cleanup: boolean): boolean
 	local objects = self._objects
 	for i, obj in ipairs(objects) do
 		if obj[1] == object then
+			-- Swap-pop: O(1) removal since we don't care about order.
 			local n = #objects
 			objects[i] = objects[n]
 			objects[n] = nil
@@ -419,6 +453,7 @@ function Trove:_cleanupObject(object, cleanupMethod)
 	if cleanupMethod == FN_MARKER then
 		object()
 	elseif cleanupMethod == THREAD_MARKER then
+		-- task.cancel throws if thread already dead. pcall so Clean() doesn't abort.
 		pcall(task.cancel, object)
 	else
 		object[cleanupMethod](object)

@@ -1,3 +1,36 @@
+--[[
+	Animator
+
+	Purpose:
+		Tiny wrapper around Roblox's Animator so dialogue commands (like
+		`$pose:Greet$`) can load and play named animation tracks on an
+		NPC without the caller wrangling AnimationTracks themselves.
+
+	When to use:
+		Call :SetUp(npc) once when the NPC spawns, :LoadAnims(npc, folder)
+		to preload a folder of Animation instances by name, then
+		:PlayAnim(npc, "Greet") from wherever (usually a CommandRun
+		listener in your dialogue UI handler).
+
+	Example:
+		Animator:SetUp(npc)
+		Animator:LoadAnims(npc, npc:WaitForChild("Anims"))
+		controller.CommandRun:Connect(function(cmd, arg)
+			if cmd == "pose" then
+				Animator:StopAllAnims(npc)
+				Animator:PlayAnim(npc, arg)
+			end
+		end)
+
+	Gotchas:
+		- The `anims` table is module-level (shared across ALL npcs). If
+		  two NPCs have animations with the same Name, the second
+		  :LoadAnims call overwrites the first. Fine for a single-NPC
+		  demo, would need a per-model cache for production use.
+		- Always call :ClearInfo(npc) when an NPC despawns to avoid
+		  holding a dead reference to its Animator.
+--]]
+
 local module = {}
 
 local animators = {}

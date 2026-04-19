@@ -1,13 +1,45 @@
 --!strict
 --IllusionIAS.luau
 --[[
-////////////////////////////////////////////////
-\\       Illusion's InputActionSystem        //
-//          Input Manager using IAS          \\
-//   More informations on the DevForum post  //
-\\                By Illusion                \\
-///////////////////////////////////////////////
+	IllusionIAS — Illusion's InputActionSystem
+	------------------------------------------
+	Purpose:
+		Thin, opinionated wrapper around Roblox's new InputAction / InputContext
+		/ InputBinding instances. Lets you declare a named "action" (Jump,
+		Interact, Move, Aim, etc.), bind one or more key combos to it, and
+		listen to clean Started / Ended / Activated signals. Adds extras the
+		raw API doesn't give you out of the box: hold vs toggle, tap-count
+		activation, cooldown, input buffering, and grouped "contexts" you can
+		enable/disable in bulk (e.g. disable all combat binds while in menus).
+
+	When to use:
+		Any time the client needs to react to input and you want something
+		nicer than UserInputService string-matching. Also good when you want
+		rebindable controls — AddBind/SetBind/EditBind mutate at runtime.
+
+	Example:
+		local IIAS = require(Shared.Util.IllusionIAS)
+		local jump = IIAS.new("Jump", Enum.InputActionType.Bool)
+		jump:AddBind(Enum.KeyCode.Space)
+		jump.Started:Connect(function() character:Jump() end)
+
+		IIAS.newContext("Combat")
+		IIAS.addContext("Combat", jump)
+		IIAS.enableContext("Combat", false) -- silence all combat binds
+
+	Gotchas:
+		- Client-only. On the server `require` returns an empty stub (see
+		  early return below) so shared code doesn't crash.
+		- Direction1D/2D/3D inputs currently fire raw values only. Hold,
+		  TapRequired and Cooldown are Bool-only right now (see the big
+		  comment in the StateChanged handler).
+		- `IIAS.new(name)` is idempotent — calling twice with the same name
+		  returns the existing action instead of creating a duplicate.
+		- Input buffer only kicks in for Bool actions; it re-fires the last
+		  press if it landed during a cooldown or while another key was held.
 ]]
+
+-- Server gets a noop table. Everything below only matters on the client.
 if not game:GetService("RunService"):IsClient() then return {}::IIAS end
 
 local IAS = require("@self/TypeDefinition")
@@ -41,6 +73,8 @@ local function instanceDeletion(name, InputContext: InputContext)
 	if inputAction then inputAction:Destroy() end
 end
 
+-- Collapses any InputAction value (bool/number/Vector2/Vector3) into a
+-- single "is this pressed right now?" boolean. Anything non-zero counts.
 @native local function valueOfVariantGivesPressed(variant: IAS.variant): boolean
 	if typeof(variant) == "boolean" then
 		return variant
@@ -61,6 +95,7 @@ type IIAS = typeof(IIAS)
 local activeBinds: { [string]: IAS.Object } = {}
 
 function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
+	-- Dedup: same name = same action. Prevents double InputContexts sharing a key.
 	if activeBinds[name] then return activeBinds[name] end
 	local InputType = inputType or Enum.InputActionType.Bool
 	
@@ -215,6 +250,8 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 		end
 	end
 	
+	-- Input buffering: if a press was swallowed (cooldown/other key holding),
+	-- we stash it and replay it here once the gate clears. Only bool actions use this.
 	local function tryConsumeBuffer()
 		if not _Buffered then return false end
 
@@ -257,6 +294,8 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 		end
 	end
 	
+	-- Every bind we register spawns an InputAction child underneath our InputContext.
+	-- We listen for those children appearing so each bind gets its own StateChanged hookup.
 	local childAddedConn: RBXScriptConnection? = InputContext.ChildAdded:Connect(function(child)
 		if child:IsA("InputAction") then			
 			stateConnections[child.Name] = child.StateChanged:Connect(function(variant: IAS.variant)
@@ -274,6 +313,8 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 				if InputType == Enum.InputActionType.Bool then
 					
 					if pressed then
+						-- Another bound key is already holding this action. Buffer the new press
+						-- (if enabled) so it can fire the instant the first key releases.
 						if _ActiveMainKey and _ActiveMainKey ~= keyEnum then
 							if self.InputBufferEnabled then
 								_Buffered = true
@@ -284,6 +325,8 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 							return
 						end
 
+						-- Multi-tap activation: accumulate presses inside TapWindow, only
+						-- fire once we've hit the required count. Anything slower resets the count.
 						if self.TapRequired > 1 then
 							if now - _LastTapTime > self.TapWindow then
 								_TapCount = 1
@@ -297,6 +340,8 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 							end
 						end
 
+						-- Cooldown still active: swallow the press but remember this key pressed
+						-- during cooldown so we correctly emit the matching "released" later.
 						if self.Cooldown > 0 and now < _CooldownUntil then
 							fire(false, true)
 							blockedPresses[keyEnum] = true
@@ -391,6 +436,10 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 	local rebuilding = false
 	local destroyed = false
 	
+	-- Diffs the user-facing self.Binds table against what we last pushed to Roblox,
+	-- then applies Added / Modified / Removed InputAction instances to match. This is
+	-- how AddBind/RemoveBind/EditBind actually take effect — they mutate self.Binds
+	-- then call rebuild().
 	local function rebuild()
 		if rebuilding or destroyed then return end
 		rebuilding = true
@@ -593,6 +642,7 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 	function self:AddBind(mainKey: Enum.KeyCode, PrimaryModifier: Enum.KeyCode?, SecondaryModifier: Enum.KeyCode?)
 		if mainKey == Enum.KeyCode.Unknown then return end
 
+		-- Key already bound? Just update its modifiers instead of creating a dupe.
 		for bindName, bind in self.Binds do
 			if bind.KeyCode == mainKey then
 				BindUtils.SetModifiers(self.Binds, bindName, PrimaryModifier, SecondaryModifier)
@@ -601,6 +651,8 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 			end
 		end
 
+		-- MainAction slot is still empty (no key ever assigned). Fill it first
+		-- so our "primary" bind stays the canonical one.
 		local mainBind = self.Binds[MainName]
 
 		if mainBind and mainBind.KeyCode == Enum.KeyCode.Unknown then
@@ -610,6 +662,7 @@ function IIAS.new(name: string, inputType: Enum.InputActionType?): IAS.Object
 			return
 		end
 
+		-- Otherwise add as AltAction1, AltAction2, ... so multiple keys can trigger the same action.
 		local index = 1
 		local bindName
 

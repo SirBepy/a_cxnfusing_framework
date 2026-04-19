@@ -3,6 +3,14 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose: Stats math for Pooler+. Computes hit rate, efficiency, creation/return
+	rates, avg lifetime, peak usage. Samples are windowed via Constants.MAX_*_SAMPLES
+	to stay bounded. Used by ObjectPool + Debug.
+	When to use: internal. Read stats via ObjectPool:GetEnhancedStats().
+	Gotchas: rates need >=2 samples to divide, otherwise stay 0.
+]]
+
 local Types = require(script.Parent.Types)
 local Utils = require(script.Parent.Utils)
 local Constants = require(script.Parent.Constants)
@@ -51,6 +59,8 @@ function Analytics.updateRates(pool: Types.ObjectPoolImpl<any>)
 end
 
 function Analytics.trackCreation(pool: Types.ObjectPoolImpl<any>)
+	-- Ring-buffer style: drop oldest sample once we hit the cap. Keeps the
+	-- rate calculation focused on recent activity instead of lifetime average.
 	table.insert(pool._creationTimes, tick())
 	if #pool._creationTimes > Constants.MAX_RATE_SAMPLES then
 		table.remove(pool._creationTimes, 1)

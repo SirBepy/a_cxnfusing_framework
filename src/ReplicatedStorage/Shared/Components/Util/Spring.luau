@@ -1,10 +1,38 @@
 --!strict
 --[[
-    Source: https://github.com/probablytukars/LuaQuaternion
-    Based on: https://github.com/Quenty/NevermoreEngine/tree/main/src/spring
-    [MIT LICENSE]
-    
-    Impulse() fixed by @crusherfire
+	Spring
+	-----
+	Purpose:
+		Physics-style spring for any n-lerpable value (number, Vector2, Vector3).
+		Lazily evaluated, so reading `.Position` / `.Velocity` computes the
+		current state on the fly based on the clock.
+
+	When to use:
+		- Bouncy UI tweens, camera follow smoothing, recoil, hitstop shake.
+		- Anywhere you'd reach for TweenService but want velocity-preserving,
+		  interruptible motion.
+
+	Example:
+		local s = Spring.new(Vector3.zero, 0.6, 8) -- initial, damping, speed
+		s.Target = Vector3.new(10, 0, 0)
+		RunService.RenderStepped:Connect(function()
+			part.Position = s.Position -- reads drive the simulation
+		end)
+
+	Gotchas:
+		- This module is often driven from RunService.RenderStepped in caller
+		  code, which is client-only and yields per-frame. Don't drive springs
+		  from a server script expecting the same loop.
+		- Damping < 1 bounces, == 1 is critically damped, > 1 is overdamped.
+		- Speed must be >= 0; the __newindex clamps negatives to 0.
+		- Reading `.Position` or `.Velocity` is NOT free; it re-integrates
+		  from the last snapshot every access.
+
+	Source: https://github.com/probablytukars/LuaQuaternion
+	Based on: https://github.com/Quenty/NevermoreEngine/tree/main/src/spring
+	[MIT LICENSE]
+
+	Impulse() fixed by @crusherfire
 --]]
 
 local ERROR_FORMAT = "%q is not a valid member of Spring."
@@ -172,9 +200,13 @@ local function _positionVelocity(self: Spring, now: number)
 	local dampingFactor = self._damping
 	local speed = self._speed
 
+	-- Elapsed time since the last snapshot, scaled by the spring's speed.
 	local deltaTime = speed * (now - self._time)
 	local dampingSquared = dampingFactor * dampingFactor
 
+	-- Three regimes for the analytic solution: underdamped (oscillates),
+	-- critically damped (fastest non-oscillating), and overdamped (slow decay).
+	-- Each computes sin/cos-like coefficients used below to blend position+velocity.
 	local angFreq, sinTheta, cosTheta
 	if dampingSquared < 1 then
 		angFreq = math.sqrt(1 - dampingSquared)
@@ -250,6 +282,8 @@ function Spring.__index(self: Spring, index)
 	error(string.format(ERROR_FORMAT, tostring(index)), 2)
 end
 
+-- Every writable field re-snapshots position+velocity at `now` before applying
+-- the change, so the simulation stays continuous across edits.
 function Spring.__newindex(self: Spring, index, value: any)
 	local now = self._clock()
 	if index == "Position" or index == "p" then

@@ -3,6 +3,18 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose: Sanity checks for pool state: memory leaks, orphaned Instances,
+	double-tracked objects, negative stats, runaway sample lists. healthCheck
+	aggregates all of them; autoRepair fixes what it can non-destructively.
+	When to use: set config.enableValidation = true and let the heartbeat
+	driver call it, or invoke ObjectPool:Validate() / Pooler:HealthCheck()
+	manually during dev.
+	Gotchas: validatePool early-returns true if enableValidation is off, so
+	watchdog calls become no-ops in prod. Leftover DEBUG print in
+	checkDataIntegrity is intentional per review.
+]]
+
 local Types = require(script.Parent.Types)
 
 local Validation = {}
@@ -43,6 +55,7 @@ function Validation.validatePool(pool: Types.ObjectPoolImpl<any>): boolean
 		calculatedMemory += 256 -- Rough estimate
 	end
 
+	-- 10KB slack: estimates are rough so small drift is normal and not worth warning about.
 	if math.abs(calculatedMemory - pool._stats.memoryUsage) > 1024 * 10 then -- 10KB tolerance
 		table.insert(issues, "Memory usage tracking inconsistent")
 	end

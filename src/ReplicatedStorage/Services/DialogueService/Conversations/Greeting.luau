@@ -1,4 +1,39 @@
-return 
+--[[
+	Conversations/Greeting
+
+	Purpose:
+		A sample conversation graph. Each entry is a node with a unique
+		Label, the Text to type, a Type ("Dialogue" or "Reply"), and
+		Connections - the labels of nodes this one can lead to.
+
+	When to use:
+		DialogueGrabber returns this module when a prompt's ID resolves
+		to "Greeting". DialogueHandler then walks the graph:
+		  - Dialogue nodes type out and either auto-advance or wait for
+		    Continue.
+		  - Reply nodes spawn a button for the player; picking one jumps
+		    to that reply's first Connection.
+
+	Example shape:
+		{
+			{ Label = "Start", Start = true, Type = "Dialogue",
+			  Text = "Hi!", Connections = { "YesReply", "NoReply" } },
+			{ Label = "YesReply", Type = "Reply",
+			  Text = "Hello!", Connections = { "Bye" } },
+			...
+		}
+
+	Gotchas:
+		- Exactly one node should have `Start = true`; otherwise the
+		  handler falls back to the first entry.
+		- Position is only a hint for editor tools (if any); runtime
+		  ignores it.
+		- Text supports `<plrName>`, `<npcName>`, effect tags (<wave>,
+		  <rainbow>, <b>, etc.), and `$command:arg$` tokens. See
+		  Conversations/Info.luau for the full grammar reference.
+--]]
+
+return
 	{
 		{
 			Label = "FollowUp",

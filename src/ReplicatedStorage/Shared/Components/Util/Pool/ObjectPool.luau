@@ -3,6 +3,50 @@
 -- Pooler+
 -- riftkuro '25
 
+--[[
+	Purpose:
+		The actual pool class. Holds two collections per pool: `_available`
+		(idle, ready to reuse) and `_inUse` (currently handed out). Get/Return
+		shuffle objects between them. Wraps Analytics/Validation/Utils so the
+		caller only touches this surface. Returned by Pooler:CreatePool.
+
+	When to use:
+		- Always via Pooler:CreatePool("name", ...). You rarely need ObjectPool.new
+		  directly. Use the returned handle for Get/Return in hot loops.
+
+	Example:
+		local pool = Pooler:CreatePool("Explosions",
+			function()
+				local e = Instance.new("Explosion")
+				e.BlastPressure = 0
+				return e
+			end,
+			function(e) e.Parent = nil end,                  -- cleanup: park it
+			function(e) e:Destroy() end,                     -- destroy: drop it
+			{ maxSize = 50, preloadCount = 10, enableAnalytics = true }
+		)
+
+		pool.OnGet:Connect(function(obj) print("got", obj) end)
+
+		local exp = pool:Get()
+		exp.Parent = workspace
+		exp.Position = hit.Position
+		task.delay(1, function() pool:Return(exp) end)
+
+	Gotchas:
+		- Get always succeeds (creates a new object past maxSize if needed,
+		  counted as a miss). Use GetSafe for a (obj?, err?) pair, or
+		  GetWithPriority to let critical-memory pressure refuse low prio.
+		- Return warns (but does nothing) if the object isn't tracked as in-use.
+		  Never Return the same object twice.
+		- If _available is full on Return, the extra object is destroyed.
+		- Signals (OnGet/OnReturn/OnCreate/OnOptimize) fire on the hot path,
+		  keep listeners cheap.
+		- instanceConfig auto-generates a cleanup that resets properties from
+		  a template and optionally reparents to a safe folder. If you pass
+		  your own cleanupFn, instanceConfig cleanup is skipped.
+]]
+
 local SignalPlus = require(script.Parent.SignalPlus)
 
 local Types = require(script.Parent.Types)
@@ -95,10 +139,14 @@ function ObjectPool:Get<T>(): T
 	local isNewObject = false
 
 	if #self._available > 0 then
+		-- Fast path: pop from the end, O(1). Most hits land here.
 		obj = table.remove(self._available) :: T
 		self._stats.hits += 1
 	else
 		if self:_getTotalSize() >= self._maxSize then
+			-- At cap and nothing idle: normally we'd just create, but check
+			-- _available one more time in case of race/re-entry, then fall
+			-- back to creating a new object anyway. We count it as a miss.
 			if #self._available > 0 then
 				obj = table.remove(self._available, 1) :: T
 				self._stats.hits += 1
@@ -107,6 +155,7 @@ function ObjectPool:Get<T>(): T
 				isNewObject = true
 			end
 		else
+			-- Under cap, nothing idle: grow the pool.
 			obj = self._create()
 			isNewObject = true
 		end
@@ -154,6 +203,8 @@ function ObjectPool:GetWithPriority<T>(priority: Types.PoolPriority): T?
 	local priorityValue = Utils.getPriorityValue(priority)
 
 	if memoryPressure == "critical" and priorityValue < 3 then
+		-- Shed low/normal priority work when memory is critical so "high" and
+		-- "critical" requesters still have headroom to allocate.
 		return nil -- denies low priority requests during critical memory pressure
 	end
 
@@ -191,6 +242,8 @@ function ObjectPool:Return<T>(object: T)
 	if #self._available < self._maxSize then
 		table.insert(self._available, object)
 	else
+		-- Pool is saturated, reusing this object would exceed maxSize. Drop it
+		-- permanently and subtract its estimated footprint from stats.
 		if self._destroy then
 			self._destroy(object)
 		end
@@ -235,6 +288,8 @@ function ObjectPool:AdaptivePreload()
 
 	local currentTime = tick()
 
+	-- Hard cooldown: at most one adaptive preload per pool every 10s regardless
+	-- of how often the manager calls us. Prevents runaway growth on busy frames.
 	if currentTime - self._lastAdaptivePreload < 10 then
 		return
 	end
@@ -252,6 +307,8 @@ end
 
 function ObjectPool:ReturnAll()
 	local self = self :: Types.ObjectPoolImpl<any>
+	-- Snapshot keys first: Return() mutates _inUse, so iterating it directly
+	-- while calling Return inside the loop would be undefined behavior.
 	local inUseCopy = {}
 	for obj in pairs(self._inUse) do
 		table.insert(inUseCopy, obj)

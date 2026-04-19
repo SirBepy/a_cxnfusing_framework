@@ -1,5 +1,50 @@
 --!strict
 --!optimize 2
+
+--[[
+	Purpose:
+		Pooler+ manager. Central registry for named ObjectPools plus system-wide
+		operations: memory pressure checks, batch get, health reports, emergency
+		cleanup, auto optimize/validate/adaptive-preload on Heartbeat. You create
+		pools through here, then use the returned ObjectPool directly for hot paths.
+
+	When to use:
+		- Spawning lots of short-lived things: bullets, hit FX, UI popups,
+		  projectile parts, damage numbers, particle bursts.
+		- Anywhere Instance.new + Destroy would run hundreds of times per second.
+		- Skip it for rare, one-off objects. Pooling overhead isn't free.
+
+	Example:
+		local Pooler = require(path.to.Pool)
+
+		-- Register a pool once at startup:
+		local bullets = Pooler:CreatePool("Bullets",
+			function() return ReplicatedStorage.BulletTemplate:Clone() end, -- create
+			function(b) b.Parent = nil end,                                  -- cleanup (on return)
+			function(b) b:Destroy() end,                                     -- destroy (on drop)
+			{ maxSize = 200, preloadCount = 50, enableAnalytics = true }
+		)
+
+		-- Hot path:
+		local b = bullets:Get()
+		b.Parent = workspace
+		task.delay(2, function() bullets:Return(b) end)
+
+		-- Anywhere else:
+		print(Pooler:GetSystemStatus().globalHitRate)
+
+	Gotchas:
+		- CreatePool on a duplicate name warns and returns the existing pool.
+		- Pooler:Return with an unknown pool name destroys the object as a
+		  fallback when it's an Instance. Other types are dropped silently.
+		- The Heartbeat loop auto-runs Optimize/AdaptivePreload/Validate on
+		  intervals from Constants. Disable per-pool via config if unwanted.
+		- EmergencyCleanup temporarily shrinks every pool to ~1.2x current
+		  in-use count then restores maxSize. Don't call mid-gameplay burst.
+		- Pool.init.luau notes leftover debug prints exist in Utils/Validation
+		  on purpose (reviewer flagged, kept for now).
+]]
+
 --[[
 -- Pooler+ v1.4 by riftkuro (2025!!!!!!!)
 ⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘⫘
@@ -215,6 +260,8 @@ local function autoOptimize()
 	end
 end
 
+-- Single heartbeat driver for every registered pool. Each sub-task is gated by
+-- its own interval (see Constants), so this is basically free most frames.
 RunService.Heartbeat:Connect(autoOptimize)
 
 --================================================================================--
@@ -395,6 +442,9 @@ function Pooler:EmergencyCleanup()
 	warn("[Pooler] Emergency cleanup initiated!")
 
 	for _, pool in pairs(pools) do
+		-- Temporarily clamp maxSize to just above what's live, force an
+		-- Optimize+GC pass, then restore. This guarantees we drop every
+		-- object currently sitting idle in the available list.
 		local originalMaxSize = pool._maxSize
 		pool:SetMaxSize(math.max(1, math.floor(pool:GetStatus().InUse * 1.2)))
 		pool:OptimizeWithGC()

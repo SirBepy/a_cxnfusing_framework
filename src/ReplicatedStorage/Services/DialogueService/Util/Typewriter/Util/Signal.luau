@@ -1,8 +1,26 @@
 --!optimize 2
 
 --[[
+	Signal (SignalPlus, vendored - Typewriter copy)
 
-           +++                                                                                      
+	Purpose:
+		Same vendored SignalPlus module as Util/Signal.luau, kept local
+		to the Typewriter so it stays self-contained if you ever want to
+		lift the Typewriter out as its own module.
+
+	When to use:
+		Used internally by Typewriter for OnLetterTyped / Completed.
+		Prefer the outer Util/Signal when writing new code outside the
+		Typewriter tree.
+
+	Gotchas:
+		- Duplicate of the outer Signal module, intentionally. Keep in
+		  sync or dedupe later if you vendor a shared copy.
+--]]
+
+--[[
+
+           +++
        ++++++++   ===                                                                               
     ++++++++++   ====                                                  ====                         
      ++++++                                                            ====                         

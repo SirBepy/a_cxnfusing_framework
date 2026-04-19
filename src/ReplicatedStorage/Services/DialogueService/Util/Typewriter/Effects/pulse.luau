@@ -1,3 +1,7 @@
+-- Pulse effect. Adds a UIScale to the letter and drives its Scale on a
+-- sine wave for a breathing/throbbing look. Per-letter offset keeps it
+-- from looking like a single group scaling.
+
 local RunService = game:GetService("RunService")
 
 return function(label: TextLabel, data: {Index : number})

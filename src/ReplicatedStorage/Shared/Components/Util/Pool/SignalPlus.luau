@@ -1,6 +1,16 @@
 --!optimize 2
 
 --[[
+	Purpose: Older/simpler SignalPlus (v3.3.1) embedded inside Pool. Used by
+	ObjectPool for OnGet/OnReturn/OnCreate/OnOptimize events so the pool module
+	stays self-contained.
+	When to use: internal to Pool. For new code, use ../Signal.luau (v3.6.1).
+	Example: see ../Signal.luau; API is the same (Connect/Once/Wait/Fire/Destroy).
+	Gotchas: this is a vendored copy, not the same table as the top-level Signal.
+	If you need cross-module signal identity, pick one source of truth.
+]]
+
+--[[
 v3.3.1
 
 An insanely fast, lightweight, fully typed and documented

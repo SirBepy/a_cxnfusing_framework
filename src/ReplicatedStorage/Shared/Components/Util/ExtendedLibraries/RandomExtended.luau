@@ -1,3 +1,33 @@
+--[[
+	RandomExtended — namespace-extension for Luau's `Random`
+	--------------------------------------------------------
+	Purpose:
+		Wraps the built-in `Random` namespace and tacks on helpers we use a
+		lot: weighted picks, random value from an array, random value from
+		a dictionary.
+
+	When to use:
+		Loot drops, rarity rolls, shuffling picks out of config tables. Use
+		instead of calling `Random.new()` directly when you want those
+		extras.
+
+	Example:
+		local Random = require(Shared.Util.ExtendedLibraries).Random
+		local rarity = Random.weighted({
+			{ value = "Common",    weight = 70 },
+			{ value = "Rare",      weight = 25 },
+			{ value = "Legendary", weight =  5 },
+		})
+
+	Gotchas:
+		- chooseFromArray silently returns nil (with a warn) if given a
+		  non-array or empty table. Turn Config.Warnings off to silence.
+		- chooseFromDictionary uses math.random + iteration order, so it is
+		  only "uniform" among the keys the iterator yields.
+]]
+
+-- Wrap the vanilla Random namespace so all original members stay reachable
+-- via the metatable while we add our own methods on the `extended` table.
 local lib = table.clone(Random)
 local extended = {}
 setmetatable(extended, {__index = lib})
@@ -8,6 +38,9 @@ extended.Config = {
 
 --<>--- Helper Functions ---<>---
 
+-- Classifies a table as Array / Dictionary / Mixed / Empty.
+-- We need this because chooseFromArray only makes sense on a real array
+-- (integer keys starting at 1) and calling #t on a dict gives 0.
 local function getTableType(t)
 	if next(t) == nil then return "Empty" end
 	local isArray = true
@@ -49,6 +82,8 @@ function extended.weighted(items : { {value: any, weight: number} }) : string
 
 	if total == 0 then error("weighted: total weight cannot be 0.") end
 
+	-- Pick a point along the [0, total] range and walk accumulated weights
+	-- until we pass it. Items with larger weights cover more of the range.
 	local rnd = math.random() * total
 	local accum = 0
 

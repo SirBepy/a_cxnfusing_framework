@@ -1,4 +1,30 @@
 --!strict
+--[[
+	NetworkerClient
+
+	Purpose:
+		Client half of Networker. Finds the server-created remote folder by
+		tag, forwards incoming server messages onto the passed module, and
+		provides `fire`/`fetch` for client->server calls.
+
+	When to use:
+		Instantiated by a client service that mirrors a server networker. Main
+		user is DataServiceClient.
+
+	Example:
+		local net = NetworkerClient.new("Chat", ChatClient)
+		net:fire("send", "hello")
+		local history = net:fetch("getHistory")
+
+	Gotchas:
+		- CLIENT-ONLY. The `.new` constructor asserts on the server.
+		- Yields on the WaitForChild for `_remotes/<tag>` until the server side
+		  has been constructed. Construct the server networker first at boot.
+		- Incoming server messages are dispatched as `module[method](module, ...)`,
+		  so the module you pass must expose matching methods (or the special
+		  `__set` replication uses direct field assignment + changed signals).
+]]
+
 local RunService = game:GetService("RunService")
 
 local Packages = script.Parent.Parent
@@ -46,6 +72,9 @@ function NetworkerClient.new(networkTag: NetworkTag, module: {}): NetworkerClien
 	end
 
 	if typeof(networkTag) == "Instance" then
+		-- Instance tags use a GUID attribute set by the server side so client
+		-- and server agree on the remote-folder name. If the attribute hasn't
+		-- replicated yet, wait for it.
 		local attributeTag = networkTag:GetAttribute(NetworkerUtils.INSTANCE_ATTRIBUTE) :: string?
 		if not attributeTag then
 			networkTag:GetAttributeChangedSignal(NetworkerUtils.INSTANCE_ATTRIBUTE):Wait()

@@ -1,12 +1,28 @@
 -- Camera Shake Instance
 -- Stephen Leitnick
 -- February 26, 2018
+--
+-- VENDORED: Part of Sleitnick's RbxCameraShaker. Don't restyle.
 
 --[[
-	
-	cameraShakeInstance = CameraShakeInstance.new(magnitude, roughness, fadeInTime, fadeOutTime)
-	
---]]
+	Purpose:
+		Single shake "source" with its own magnitude, roughness, and fade curves.
+		CameraShaker owns a list of these and sums their offsets per frame.
+
+	When to use:
+		Build directly via .new when you want one-off custom shakes. Usually you
+		don't touch this file, you just grab one from CameraShakePresets or let
+		CameraShaker:ShakeOnce/StartShake build it for you.
+
+	Example:
+		local inst = CameraShakeInstance.new(5, 10, 0, 1.5) -- magnitude, roughness, fadeIn, fadeOut
+		camShake:Shake(inst)
+
+	Gotchas:
+		- `tick` is seeded randomly so two shakes don't produce identical noise.
+		- Setting DeleteOnInactive = false lets you keep and re-trigger the same
+		  instance without reallocating.
+]]
 
 
 

@@ -1,15 +1,35 @@
 --!strict
 --IllusionSignal.luau
---[[ 
-  //////////////////////
- //  Illusion Signal //
-//////////////////////
+--[[
+	IllusionSignal (internal to IllusionIAS)
+	----------------------------------------
+	Purpose:
+		Minimal linked-list signal/event implementation used by IllusionIAS's
+		Activated / Started / Ended events. Connect, Once, Wait, Fire,
+		DisconnectAll. Nothing fancy, no pooling, no queueing.
+
+	When to use:
+		Internal. Use the Activated/Started/Ended fields on an IIAS action.
+		If you need a general-purpose signal elsewhere, grab Lemoine's
+		SignalPlus or similar from Packages.
+
+	Example (internal):
+		local sig = IllusionSignal.new()
+		sig:Connect(function(v) print(v) end)
+		sig:Fire(true, true)
+
+	Gotchas:
+		- Fire runs handlers synchronously on the calling thread. An error
+		  in one handler will interrupt the rest.
+		- Wait yields the current coroutine until the next Fire.
 ]]
 
 local IAS = require("./TypeDefinition")
 
 return {
 	new = function(): IAS.IAScriptSignal
+		-- Signal state is a singly-linked list of nodes. New connections
+		-- prepend at `head`, disconnects splice the list. No array shuffling.
 		local head: IAS.Node? = nil
 
 		local function createConnection(node: IAS.Node): IAS.IAScriptConnection
@@ -82,6 +102,8 @@ return {
 			end,
 
 			Fire = function(self: IAS.IAScriptSignal, active: IAS.variant, pressed: boolean?)
+				-- Walk the list. We advance `node` *before* calling `fn` so a
+				-- handler disconnecting itself mid-fire doesn't break iteration.
 				local node = head
 				while node do
 					local fn = node.fn

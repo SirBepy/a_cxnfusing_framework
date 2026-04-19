@@ -1,8 +1,52 @@
 --!strict
+--[[
+	DataServiceServer
+
+	Purpose:
+		Owns the persistent per-player data. Wraps ProfileStore for saving/loading,
+		builds a Data object per player for in-memory reads, and replicates
+		mutations to the owning client via Networker.
+
+	When to use:
+		In a server Script during game boot. Call `:init(options)` with your
+		template once, then use `:get/:set/:update/:arrayInsert/:arrayRemove`
+		for per-player reads and writes.
+
+	Example:
+		local DataService = require(path.to.DataService).server
+		DataService:init({
+			template = require(path.to.DataTemplate),
+			profileStoreIndex = "Live",
+		})
+
+		function DataService:onPlayerInit(player, data)
+			data.sessionJoinTime = os.time()
+		end
+
+		Players.PlayerAdded:Connect(function(player)
+			local currency = DataService:get(player, { "currency" })
+			DataService:set(player, { "currency" }, currency + 10)
+		end)
+
+	Gotchas:
+		- SERVER-ONLY. Required on the client this module returns an empty stub
+		  (see below) and every method will be nil. Use `.client` on clients.
+		- `:init(...)` must run before anything else and exactly once.
+		- Data must be JSON-safe (no Vector3/CFrame/Instance). ProfileStore won't
+		  serialize those.
+		- Mutations auto-replicate to the owning client unless you pass
+		  `dontReplicate = true`. If you bypass replication you're responsible
+		  for any client-side sync.
+		- `onPlayerInit` runs AFTER profile load but BEFORE the client receives
+		  the snapshot - safe to mutate data directly there (no signals yet).
+]]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 if RunService:IsClient() then
+	-- Client import of the server module: return an empty stub. Real API lives
+	-- in DataServiceClient. See `init.luau` for the split.
 	return {} :: DataServiceServer
 end
 
@@ -129,6 +173,8 @@ function DataServiceServer.init(self: DataServiceServer, options: DataOptions): 
 	assert(not self.playerStore, "DataServiceServer has already been initialized.")
 	self.options = options
 	self.playerStore = ProfileStore.New(options.profileStoreIndex or DEFAULT_PROFILE_STORE_INDEX, options.template)
+	-- Whitelist only `self.get` for client->server calls; everything else is
+	-- server-only. `fetch("get", path)` on the client goes through this.
 	self.networker = Networker.server.new("DataService", self, { self.get })
 
 	for _, player: Player in Players:GetPlayers() do
@@ -146,6 +192,9 @@ function DataServiceServer.init(self: DataServiceServer, options: DataOptions): 
 	end)
 end
 
+-- ProfileStore calls :Cancel() periodically while loading; if it returns true
+-- we abort the session load. Player having left Players means they disconnected
+-- mid-load, so don't bother finishing.
 local function storeCancel(player: Player)
 	return {
 		Cancel = function()
@@ -182,6 +231,9 @@ function DataServiceServer._playerAdded(self: DataServiceServer, player: Player)
 		self.playerStore:RemoveAsync(index)
 	end
 
+	-- Three load paths: Mock for Studio/testing (no real saves), GetAsync for
+	-- read-only viewing or save-disabled runs, StartSessionAsync for the normal
+	-- live path that owns the save lock.
 	local profile: Profile = if self.options.useMock
 		then self.playerStore.Mock:StartSessionAsync(index, storeCancel(player))
 		elseif self.options.viewedUserId or self.options.dontSave then self.playerStore:GetAsync(index)
@@ -212,6 +264,10 @@ function DataServiceServer._playerAdded(self: DataServiceServer, player: Player)
 		return
 	end
 
+	-- Global messages are cross-server deliveries (e.g. gift-sent from another
+	-- server). If no callback is registered for the key yet, wait until one is
+	-- - don't drop the message. `processed()` acks ProfileStore so it stops
+	-- redelivering.
 	profile:MessageHandler(function(messageData: MessageData, processed: () -> ())
 		local cb = self._globalCallbacks[messageData.key]
 		if cb then

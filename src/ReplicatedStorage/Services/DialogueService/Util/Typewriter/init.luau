@@ -1,3 +1,59 @@
+--[[
+	Typewriter
+
+	Purpose:
+		Renders text one character at a time. Two modes:
+		  - :Type(text)           - spawns a TextLabel PER letter inside
+		                            Config.TypeFrame. Slower, but lets
+		                            per-letter effects (wave, rainbow,
+		                            glitch, etc.) work via the <effect>
+		                            tags in the input text.
+		  - :TypeInLabel(lbl, t)  - uses MaxVisibleGraphemes on a single
+		                            TextLabel. Fast and simple, but
+		                            effect tags won't animate.
+
+	When to use:
+		The DialogueHandler picks between these based on its Config
+		.TextType ("Letter" vs "InLabel"). You can also drive the
+		Typewriter directly if you want typed text outside dialogue,
+		e.g. a narration box or a cutscene caption.
+
+	Example:
+		local Typewriter = require(path.to.Typewriter)
+		Typewriter:Init() -- loads effect modules once at startup
+
+		Typewriter:SetConfig({
+			TypeFrame         = myLetterFrame,
+			LetterTemplate    = myLetterTemplate,
+			TypeSound         = mySound,
+			SoundStacks       = true,
+			PitchVariation    = {0.95, 1.05},
+			PlaySoundOnSpace  = false,
+			DefaultTypeSpeed  = 0.03,
+			CommaPauseLength  = 0.2,
+			PunctuationPauseLength = 0.5,
+		})
+
+		local tw = Typewriter:Type("Hello <wave>world</wave>!")
+		tw.OnLetterTyped:Connect(function(data)
+			print("typed:", data.Letter, "at", data.Index)
+		end)
+		tw.Completed:Wait()
+
+	Gotchas:
+		- Call :Init() ONCE before typing, so effect modules in Effects/
+		  are loaded. If you skip it, effect tags parse but do nothing.
+		- :SetConfig MERGES into the live Config (doesn't replace it).
+		  Reset manually if you need a clean slate.
+		- :Type hard-requires Config.TypeFrame. It warns and returns nil
+		  otherwise.
+		- Index passed to OnLetterTyped counts VISIBLE characters (tags
+		  stripped), which is what DialogueHandler keys commands against.
+		- Layout is a naive left-to-right word-wrapper; it measures each
+		  word with TextService. Fine for short lines, not a full rich
+		  text engine.
+--]]
+
 local Typewriter = {}
 
 ---<>--- Variables ---<>---
@@ -55,6 +111,9 @@ local function playTypeSound()
 	local sound = Config.TypeSound
 	if not sound then return end
 
+	-- SoundStacks=true means each keystroke clones the sound so rapid
+	-- typing overlaps instead of retriggering the same instance (which
+	-- would restart playback and sound choppy).
 	local playback = sound
 	if Config.SoundStacks then
 		playback = sound:Clone()
@@ -63,6 +122,9 @@ local function playTypeSound()
 	end
 
 	local pitchEffect = playback:FindFirstChild("PitchShiftSoundEffect") or Instance.new("PitchShiftSoundEffect", playback)
+	-- Random per-letter pitch makes the typing sound feel alive. Scale
+	-- to integers for math.random then divide back down to the decimal
+	-- range the user configured.
 	pitchEffect.Octave = math.random(Config.PitchVariation[1]*10, Config.PitchVariation[2]*10)/10
 	playback:Play()
 
@@ -156,6 +218,9 @@ function Typewriter:Type(text : string) : {
 	end
 
 	local raw = text or ""
+	-- `parse` strips <effect> tags and returns the visible characters +
+	-- which effects are active at each index. `stripped` is the clean
+	-- string used by the layout engine for word-wrap measurement.
 	local characterData, stripped = parse(raw)
 
 	local Layout = layoutMaker.new(
@@ -173,6 +238,8 @@ function Typewriter:Type(text : string) : {
 		end
 		
 		for i, data in characterData do
+			-- :Wait(n) pauses the typing loop without killing it, so
+			-- $wait:0.5$ in a dialogue line can create dramatic pauses.
 			if waiting then repeat task.wait() until not waiting or cancelled end
 			if cancelled then return end
 

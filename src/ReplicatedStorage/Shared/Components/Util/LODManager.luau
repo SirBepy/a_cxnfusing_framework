@@ -1,3 +1,34 @@
+--[[
+	Purpose:
+		Level-of-Detail swapper. Register a world-space CFrame plus a list of
+		{Model, Distance} pairs; the manager picks the best model based on
+		distance from the current camera and parents it to the scene, parking
+		inactive LODs in a debris folder.
+
+	When to use:
+		Large static props (trees, buildings, rocks) where you have a cheap far
+		LOD and an expensive near LOD and want to save render/physics cost at
+		range.
+
+	Example:
+		local id = LODManager:Register(trunk.CFrame, {
+			{ Model = treeHigh, Distance = 0 },
+			{ Model = treeMed,  Distance = 75 },
+			{ Model = treeLow,  Distance = 200 },
+		})
+		-- later: LODManager:Deregister(id)
+		LODManager:Init() -- call once globally to start the update loop
+
+	Gotchas:
+		- Must call :Init() once somewhere to start the background loop; without
+		  it, swaps never happen.
+		- Distance is compared via >= so the lowest-distance entry (usually 0)
+		  is your nearest/highest-detail model.
+		- Inactive LODs are parked in ReplicatedStorage.LODDebris, NOT destroyed.
+		  Deregister destroys them.
+		- Assumes workspace.CurrentCamera is set (client runtime).
+]]
+
 local LODManager = {}
 
 ---<>--- Variables ---<>---
@@ -30,6 +61,9 @@ local function getModel(ID : string) : Model
 	local data = Registered[ID]
 	local dist = (cc.CFrame.Position - data.CFrame.Position).Magnitude
 
+	-- Walk the LOD list and pick the entry with the HIGHEST Distance that's
+	-- still <= current dist. Tracking lastThreshold lets the Models array be
+	-- unsorted and still produce the correct "farthest that applies" pick.
 	local bestModel = data.Models[1].Model
 	local lastThreshold = -1
 
@@ -51,6 +85,9 @@ function LODManager:Register(CF : CFrame, Models : {
 	if not CF or not Models then return end
 
 	local ID = GenGUID()
+	-- Batches exist so the Init loop can yield between groups (via
+	-- BatchUpdateDelay) instead of updating every registered LOD in one frame.
+	-- Keeps cost amortized across frames for big worlds.
 	local batch = math.ceil(registeredCount+1/Config.BatchSize)
 
 	if not Batches[batch] then Batches[batch] = {} end
@@ -125,6 +162,9 @@ function LODManager:Init()
 					local curModel = data.CurrentModel
 					local newModel = getModel(id)
 
+					-- Only touch Parent/PivotTo when the picked LOD actually
+					-- changed. Reparenting every frame would be a perf cliff
+					-- for hundreds of LOD'd props.
 					if curModel ~= newModel then
 						newModel.Parent = data.Parent
 						newModel:PivotTo(data.CFrame)
