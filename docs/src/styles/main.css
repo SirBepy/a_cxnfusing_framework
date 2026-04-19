@@ -99,17 +99,17 @@ a:hover { text-decoration: underline; }
   max-width: 960px;
   width: 100%;
   margin: 0;
-  transition: opacity 150ms ease-out, transform 150ms ease-out;
+  transition: opacity 220ms ease-out, transform 220ms ease-out;
   will-change: opacity, transform;
 }
 .content.leaving {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(16px);
   pointer-events: none;
 }
 .content.entering {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(16px);
 }
 @media (prefers-reduced-motion: reduce) {
   .content { transition: none; }

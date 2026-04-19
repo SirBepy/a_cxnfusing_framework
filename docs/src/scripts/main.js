@@ -26,7 +26,7 @@ const TOP_PAGES = {
   "architecture": { title: "Architecture", path: "architecture.md", icon: "ph-tree-structure" },
 };
 
-const TRANSITION_MS = 150;
+const TRANSITION_MS = 220;
 
 const contentEl = document.getElementById("content");
 const sidebarEl = document.getElementById("sidebar");
