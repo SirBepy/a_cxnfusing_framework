@@ -1,0 +1,14 @@
+{
+  "title": "a_cxnfusing_framework docs",
+  "shortDescription": "Documentation site for cxnfusion's Roblox Luau framework.",
+  "type": "Web",
+  "status": "in-progress",
+  "languages": ["HTML", "CSS", "JavaScript"],
+  "frameworks": [],
+  "tools": ["marked", "highlight.js", "Phosphor Icons"],
+  "liveUrl": "https://sirbepy.github.io/a_cxnfusing_framework_docs/",
+  "mainImage": "screenshot-1.png",
+  "images": ["screenshot-1.png", "screenshot-2.png", "screenshot-3.png"],
+  "year": 2026,
+  "impressiveness": 3
+}
