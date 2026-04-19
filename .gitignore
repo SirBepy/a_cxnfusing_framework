@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+dist/
+.env
+
+# Roblox / Rojo
+*.rbxl.lock
+*.rbxlx.lock
