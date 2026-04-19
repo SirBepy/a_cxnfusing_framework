@@ -6,6 +6,8 @@ Drop it into a Rojo project, require `Framework`, and get a loader plus utilitie
 
 Version `1.2.0 - Open Source, Added Utilities`. MIT licensed. Originally by [cxnfusion](https://github.com/cxnfusingworld).
 
+**Docs site:** https://sirbepy.github.io/a_cxnfusing_framework/
+
 ---
 
 ## What's in the box
@@ -83,7 +85,8 @@ local Trove = Shared.Utilities.Trove
 
 ## Documentation
 
-- [docs/index.md](docs/index.md) — documentation home / navigation
+- **Live site:** https://sirbepy.github.io/a_cxnfusing_framework/
+- [docs/index.md](docs/index.md) — documentation home / navigation (markdown)
 - [docs/getting-started.md](docs/getting-started.md) — zero-to-booting walkthrough
 - [docs/architecture.md](docs/architecture.md) — how the loader, Shared, and tag-loaded modules fit together
 - [docs/modules/](docs/modules/) — per-module reference pages
