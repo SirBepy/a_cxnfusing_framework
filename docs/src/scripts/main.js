@@ -27,6 +27,7 @@ const TOP_PAGES = {
 };
 
 const TRANSITION_MS = 220;
+console.log("[docs] main.js v3 loaded, transitions=" + TRANSITION_MS + "ms, reduced-motion=" + window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 const contentEl = document.getElementById("content");
 const sidebarEl = document.getElementById("sidebar");
