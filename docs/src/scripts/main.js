@@ -26,9 +26,12 @@ const TOP_PAGES = {
   "architecture": { title: "Architecture", path: "architecture.md", icon: "ph-tree-structure" },
 };
 
+const TRANSITION_MS = 150;
+
 const contentEl = document.getElementById("content");
 const sidebarEl = document.getElementById("sidebar");
 const sidebarToggle = document.getElementById("sidebar-toggle");
+const progressEl = document.getElementById("nav-progress");
 
 marked.setOptions({
   highlight: (code, lang) => {
@@ -42,17 +45,24 @@ marked.setOptions({
   gfm: true,
 });
 
+const mdCache = new Map();
+
 async function fetchMarkdown(path) {
-  const res = await fetch(path + "?t=" + Date.now());
+  if (mdCache.has(path)) return mdCache.get(path);
+  const res = await fetch(path);
   if (!res.ok) throw new Error("Failed to load " + path + " (" + res.status + ")");
-  return await res.text();
+  const text = await res.text();
+  mdCache.set(path, text);
+  return text;
 }
 
-function renderMarkdownInto(el, md) {
-  el.innerHTML = marked.parse(md);
-  el.querySelectorAll("pre code").forEach((block) => {
+function renderMarkdownToHtml(md) {
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = marked.parse(md);
+  wrapper.querySelectorAll("pre code").forEach((block) => {
     if (!block.classList.contains("hljs")) hljs.highlightElement(block);
   });
+  return wrapper.innerHTML;
 }
 
 function setActiveLink(hash) {
@@ -61,7 +71,58 @@ function setActiveLink(hash) {
   });
 }
 
-function renderLanding() {
+function wait(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function showProgress() {
+  if (progressEl) progressEl.classList.add("active");
+}
+function hideProgress() {
+  if (progressEl) progressEl.classList.remove("active");
+}
+
+let navSeq = 0;
+async function navigate(prepare, activeHash) {
+  const seq = ++navSeq;
+
+  let html;
+  try {
+    const maybeHtml = prepare();
+    if (maybeHtml && typeof maybeHtml.then === "function") {
+      // Async path: show progress bar, await.
+      showProgress();
+      html = await maybeHtml;
+      hideProgress();
+    } else {
+      html = maybeHtml;
+    }
+  } catch (err) {
+    html = buildErrorHtml(err && err.message);
+    hideProgress();
+  }
+
+  if (seq !== navSeq) return;
+
+  contentEl.classList.add("leaving");
+  await wait(TRANSITION_MS);
+  if (seq !== navSeq) return;
+
+  contentEl.innerHTML = html;
+  contentEl.querySelectorAll("pre code").forEach((block) => {
+    if (!block.classList.contains("hljs")) hljs.highlightElement(block);
+  });
+
+  contentEl.classList.add("entering");
+  contentEl.classList.remove("leaving");
+  void contentEl.offsetHeight;
+  contentEl.classList.remove("entering");
+
+  setActiveLink(activeHash);
+  window.scrollTo({ top: 0 });
+}
+
+function buildLandingHtml() {
   const groups = {};
   MODULES.forEach((m) => {
     if (!groups[m.group]) groups[m.group] = [];
@@ -100,40 +161,22 @@ function renderLanding() {
     html += `</div>`;
   });
 
-  contentEl.innerHTML = html;
-  setActiveLink("#/");
+  return html;
 }
 
-async function renderPage(slug) {
-  const def = TOP_PAGES[slug];
-  if (!def) return render404("Unknown page: " + slug);
-
-  contentEl.innerHTML = `<div class="loading"><i class="ph ph-circle-notch ph-spin"></i> Loading ${def.title}...</div>`;
-  try {
-    const md = await fetchMarkdown(def.path);
-    renderMarkdownInto(contentEl, md);
-  } catch (err) {
-    render404(err.message);
-  }
-  setActiveLink("#/" + slug);
+async function buildMarkdownHtml(path) {
+  if (mdCache.has(path)) return renderMarkdownToHtml(mdCache.get(path));
+  const md = await fetchMarkdown(path);
+  return renderMarkdownToHtml(md);
 }
 
-async function renderModule(slug) {
-  const mod = MODULES.find((m) => m.slug === slug);
-  if (!mod) return render404("Unknown module: " + slug);
-
-  contentEl.innerHTML = `<div class="loading"><i class="ph ph-circle-notch ph-spin"></i> Loading ${mod.name}...</div>`;
-  try {
-    const md = await fetchMarkdown(`modules/${slug}.md`);
-    renderMarkdownInto(contentEl, md);
-  } catch (err) {
-    render404(err.message);
-  }
-  setActiveLink("#/modules/" + slug);
+function buildMarkdownHtmlMaybeSync(path) {
+  if (mdCache.has(path)) return renderMarkdownToHtml(mdCache.get(path));
+  return buildMarkdownHtml(path);
 }
 
-function render404(reason) {
-  contentEl.innerHTML = `
+function buildErrorHtml(reason) {
+  return `
     <h1><i class="ph ph-warning-circle"></i> Not found</h1>
     <p>${reason || "This page doesn't exist."}</p>
     <p><a href="#/"><i class="ph ph-arrow-left"></i> Back to home</a></p>
@@ -145,28 +188,63 @@ function route() {
   if (sidebarEl) sidebarEl.classList.remove("open");
 
   if (hash === "#/" || hash === "#") {
-    renderLanding();
+    navigate(() => buildLandingHtml(), "#/");
     return;
   }
 
   const parts = hash.replace(/^#\//, "").split("/").filter(Boolean);
+
   if (parts[0] === "modules" && parts[1]) {
-    renderModule(parts[1]);
-    return;
-  }
-  if (parts.length === 1) {
-    renderPage(parts[0]);
+    const slug = parts[1];
+    const mod = MODULES.find((m) => m.slug === slug);
+    if (!mod) {
+      navigate(() => buildErrorHtml("Unknown module: " + slug), "#/");
+      return;
+    }
+    navigate(() => buildMarkdownHtmlMaybeSync(`modules/${slug}.md`), `#/modules/${slug}`);
     return;
   }
 
-  render404();
+  if (parts.length === 1) {
+    const slug = parts[0];
+    const def = TOP_PAGES[slug];
+    if (!def) {
+      navigate(() => buildErrorHtml("Unknown page: " + slug), "#/");
+      return;
+    }
+    navigate(() => buildMarkdownHtmlMaybeSync(def.path), `#/${slug}`);
+    return;
+  }
+
+  navigate(() => buildErrorHtml(), "#/");
 }
 
-window.addEventListener("hashchange", () => {
+function idlePrefetchAll() {
+  const urls = [
+    ...Object.values(TOP_PAGES).map((p) => p.path),
+    ...MODULES.map((m) => `modules/${m.slug}.md`),
+  ];
+  const runIdle = (cb) => {
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(cb, { timeout: 2000 });
+    } else {
+      setTimeout(cb, 50);
+    }
+  };
+  const step = (i) => {
+    if (i >= urls.length) return;
+    runIdle(() => {
+      fetchMarkdown(urls[i]).catch(() => {}).finally(() => step(i + 1));
+    });
+  };
+  runIdle(() => step(0));
+}
+
+window.addEventListener("hashchange", route);
+window.addEventListener("DOMContentLoaded", () => {
   route();
-  window.scrollTo({ top: 0 });
+  idlePrefetchAll();
 });
-window.addEventListener("DOMContentLoaded", route);
 
 if (sidebarToggle && sidebarEl) {
   sidebarToggle.addEventListener("click", () => {
