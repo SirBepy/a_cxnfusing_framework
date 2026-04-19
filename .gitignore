@@ -6,3 +6,6 @@ dist/
 # Roblox / Rojo
 *.rbxl.lock
 *.rbxlx.lock
+
+# Claude Code
+.claude/settings.local.json
