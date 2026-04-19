@@ -1,6 +1,6 @@
 # a_cxnfusing_framework
 
-A batteries-included Roblox Luau framework by `cxnfusing`. Provides a loader that wires up utilities, functions, info tables, services, network events, and tag-discovered modules into a single require surface. Designed to be dropped into a Rojo project and used on both client and server.
+A batteries-included Roblox Luau framework by [cxnfusion](https://github.com/cxnfusingworld). Provides a loader that wires up utilities, functions, info tables, services, network events, and tag-discovered modules into a single require surface. Designed to be dropped into a Rojo project and used on both client and server.
 
 Current version string (from `Shared/init.luau`): `1.2.0 - Open Source, Added Utilities`.
 

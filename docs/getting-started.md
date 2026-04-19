@@ -15,7 +15,7 @@ This installs the exact versions listed in `aftman.toml`.
 ## 2. Clone the repo
 
 ```bash
-git clone https://github.com/cxnfusing/a_cxnfusing_framework.git
+git clone https://github.com/cxnfusingworld/a_cxnfusing_framework.git
 cd a_cxnfusing_framework
 ```
 
